@@ -6,6 +6,14 @@ metadata:
 spec:
   template:
     spec:
+      initContainers:
+        - name: init-storage
+          env:
+            - name: LOCAL_STORAGE_ROOT
+              value: /storage
+          volumeMounts:
+            - name: render-storage
+              mountPath: /storage
       containers:
         - name: spot-render-backend
           env:
