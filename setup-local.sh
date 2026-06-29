@@ -103,23 +103,22 @@ fi
 info "Deploying API/portal/Argo/observability"
 (cd "$REPO_ROOT" && make deploy-api deploy-portal deploy-argo deploy-observability)
 
-ROLLOUTS_AVAILABLE=false
 if kubectl get crd rollouts.argoproj.io >/dev/null 2>&1; then
-  ROLLOUTS_AVAILABLE=true
-else
-  warn "CRD rollouts.argoproj.io não encontrado; pulando updates de Rollout"
-fi
-
-if [[ "$ROLLOUTS_AVAILABLE" == true ]]; then
   if kubectl get rollout spot-render-backend -n spot-render >/dev/null 2>&1; then
     info "Setting rollout spot-render-backend image to $API_IMAGE"
-    kubectl -n spot-render set image rollout/spot-render-backend spot-render-backend="$API_IMAGE" >/dev/null
+    kubectl -n spot-render set image rollout/spot-render-backend spot-render-backend="$API_IMAGE" >/dev/null || warn "Falha ao atualizar rollout backend"
+  else
+    warn "Rollout spot-render-backend não encontrado; pulei atualização"
   fi
 
   if kubectl get rollout spot-render-web -n spot-render >/dev/null 2>&1; then
     info "Setting rollout spot-render-web image to $PORTAL_IMAGE"
-    kubectl -n spot-render set image rollout/spot-render-web spot-render-web="$PORTAL_IMAGE" >/dev/null
+    kubectl -n spot-render set image rollout/spot-render-web spot-render-web="$PORTAL_IMAGE" >/dev/null || warn "Falha ao atualizar rollout web"
+  else
+    warn "Rollout spot-render-web não encontrado; pulei atualização"
   fi
+else
+  warn "CRD rollouts.argoproj.io não disponível; pulando set image nos rollouts"
 fi
 
 if kubectl get workflowtemplate render-workflow-local -n rendering >/dev/null 2>&1; then
