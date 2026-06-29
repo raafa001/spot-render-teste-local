@@ -106,6 +106,13 @@ esac
 info "Running bootstrap"
 HOST_STORAGE_ROOT="$HOST_STORAGE_ROOT" "$REPO_ROOT/scripts/bootstrap.sh"
 
+info "Garantindo diretórios em $HOST_STORAGE_ROOT"
+mkdir -p "$HOST_STORAGE_ROOT"/shared "$HOST_STORAGE_ROOT"/input "$HOST_STORAGE_ROOT"/output "$HOST_STORAGE_ROOT"/error "$HOST_STORAGE_ROOT"/renderlists
+
+info "Aplicando manifests de storage"
+kubectl apply -f "$REPO_ROOT/k8s/storage.yaml"
+HOST_STORAGE_ROOT="$HOST_STORAGE_ROOT" envsubst < "$REPO_ROOT/k8s/storage-hostpath.yaml.tpl" | kubectl apply -f -
+
 if [[ -n "$PORTAL_ENV_FILE" ]]; then
   info "Configurando $PORTAL_ENV_FILE com NEXT_PUBLIC_API_URL=$PORTAL_API_URL"
   cat <<EOF > "$PORTAL_ENV_FILE"
