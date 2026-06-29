@@ -13,6 +13,7 @@ WORKER_SHA=$(cd "$BASE_DIR/spot-render-argo" && git rev-parse --short HEAD)
 API_IMAGE=${API_IMAGE:-spot-render-backend:$API_SHA}
 PORTAL_IMAGE=${PORTAL_IMAGE:-spot-render-web:$PORTAL_SHA}
 WORKER_IMAGE=${WORKER_IMAGE:-spot-render-worker:$WORKER_SHA}
+PORTAL_API_URL=${PORTAL_API_URL:-http://spot-render-api.spot-render.svc.cluster.local:8000}
 
 function info(){ echo "[+] $1"; }
 function warn(){ echo "[!] $1"; }
@@ -65,6 +66,7 @@ if [[ $CLUSTER_MODE == auto ]]; then
 fi
 
 info "Cluster mode: $CLUSTER_MODE"
+info "Portal build usará NEXT_PUBLIC_API_URL=$PORTAL_API_URL"
 
 for repo in "${REPOSITORIES[@]}"; do
   path="$BASE_DIR/$repo"
@@ -105,7 +107,7 @@ HOST_STORAGE_ROOT="$HOST_STORAGE_ROOT" "$REPO_ROOT/scripts/bootstrap.sh"
 
 info "Building container images"
 (cd "$BASE_DIR/spot-render-api" && docker build -t "$API_IMAGE" .)
-(cd "$BASE_DIR/spot-render-portal" && docker build -t "$PORTAL_IMAGE" .)
+(cd "$BASE_DIR/spot-render-portal" && docker build --build-arg NEXT_PUBLIC_API_URL="$PORTAL_API_URL" -t "$PORTAL_IMAGE" .)
 (cd "$BASE_DIR/spot-render-argo" && docker build -t "$WORKER_IMAGE" -f Dockerfile.worker .)
 
 if [[ $CLUSTER_MODE == kind ]]; then
