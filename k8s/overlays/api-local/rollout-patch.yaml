@@ -8,6 +8,13 @@ spec:
     spec:
       initContainers:
         - name: init-storage
+          image: alpine:3.19
+          command: ["/bin/sh","-c"]
+          args:
+            - |
+              ROOT="${LOCAL_STORAGE_ROOT:-/storage}"
+              mkdir -p "$ROOT" "$ROOT/data"
+              chmod -R 0777 "$ROOT"
           env:
             - name: LOCAL_STORAGE_ROOT
               value: /storage
