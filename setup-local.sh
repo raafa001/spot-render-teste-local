@@ -109,6 +109,11 @@ HOST_STORAGE_ROOT="$HOST_STORAGE_ROOT" "$REPO_ROOT/scripts/bootstrap.sh"
 info "Garantindo diretórios em $HOST_STORAGE_ROOT"
 mkdir -p "$HOST_STORAGE_ROOT"/shared "$HOST_STORAGE_ROOT"/input "$HOST_STORAGE_ROOT"/output "$HOST_STORAGE_ROOT"/error "$HOST_STORAGE_ROOT"/renderlists
 
+info "Reconciliando PV/PVC spot-render-storage"
+kubectl delete pvc spot-render-storage -n spot-render --ignore-not-found >/dev/null 2>&1 || true
+kubectl delete pvc spot-render-storage -n rendering --ignore-not-found >/dev/null 2>&1 || true
+kubectl delete pv spot-render-storage --ignore-not-found >/dev/null 2>&1 || true
+
 info "Aplicando manifests de storage"
 kubectl apply -f "$REPO_ROOT/k8s/storage.yaml"
 HOST_STORAGE_ROOT="$HOST_STORAGE_ROOT" envsubst < "$REPO_ROOT/k8s/storage-hostpath.yaml.tpl" | kubectl apply -f -

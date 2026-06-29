@@ -8,6 +8,7 @@ spec:
   accessModes:
     - ReadWriteMany
   persistentVolumeReclaimPolicy: Retain
+  storageClassName: hostpath
   hostPath:
     path: /tmp/spot-render-storage
 ---
@@ -23,6 +24,7 @@ spec:
     requests:
       storage: 20Gi
   volumeName: spot-render-storage
+  storageClassName: hostpath
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -36,3 +38,4 @@ spec:
     requests:
       storage: 20Gi
   volumeName: spot-render-storage
+  storageClassName: hostpath
