@@ -6,7 +6,7 @@
 - Git, Docker, kubectl, helm
 - Kind (para modo padrão) ou Minikube / Docker Desktop
 - Acesso aos repositórios `spot-render-*`
-- Kustomize CLI (>= v5) – usado para renderizar os overlays locais
+- Kustomize CLI (>= v5) – usado para renderizar os overlays locais (caso não esteja instalado, `setup-local.sh` e `scripts/bootstrap.sh` executam automaticamente `scripts/install-kustomize.sh` e instalam em `~/.local/bin`).
 
 ## Uso rápido (script automatizado)
 ```bash

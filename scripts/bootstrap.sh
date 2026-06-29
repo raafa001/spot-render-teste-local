@@ -25,6 +25,15 @@ function ensure_local_path() {
   kubectl -n local-path-storage patch storageclass local-path -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}' >/dev/null
 }
 
+function ensure_kustomize() {
+  if command -v kustomize >/dev/null 2>&1; then
+    return
+  fi
+  info "kustomize não encontrado; instalando versão ${KUSTOMIZE_VERSION:-v5.4.1}"
+  "$REPO_ROOT/scripts/install-kustomize.sh"
+  export PATH="$HOME/.local/bin:$PATH"
+}
+
 function helm_release_exists() {
   local release=$1
   local namespace=$2
@@ -144,6 +153,8 @@ helm repo add argo https://argoproj.github.io/argo-helm >/dev/null
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null
 helm repo add sonarqube https://SonarSource.github.io/helm-chart-sonarqube >/dev/null
 helm repo update >/dev/null
+
+ensure_kustomize
 
 install_if_missing argo-workflows rendering argo/argo-workflows \
   --set server.extraArgs="{--auth-mode=server}" \

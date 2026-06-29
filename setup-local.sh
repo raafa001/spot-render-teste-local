@@ -22,7 +22,11 @@ require_cmd git
 require_cmd kubectl
 require_cmd helm
 require_cmd docker
-require_cmd kustomize
+if ! command -v kustomize >/dev/null 2>&1; then
+  info "kustomize não encontrado, executando instalador local"
+  "$REPO_ROOT/scripts/install-kustomize.sh"
+  export PATH="$HOME/.local/bin:$PATH"
+fi
 
 if [[ $CLUSTER_MODE == auto ]]; then
   context=$(kubectl config current-context 2>/dev/null || echo "")
