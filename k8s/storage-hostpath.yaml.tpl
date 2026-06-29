@@ -9,7 +9,7 @@ spec:
     - ReadWriteMany
   persistentVolumeReclaimPolicy: Retain
   hostPath:
-    path: ${HOST_STORAGE_ROOT}/shared
+    path: ${HOST_STORAGE_ROOT}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
