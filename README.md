@@ -25,14 +25,23 @@
 
 ```bash
 cd spot-render-teste-local
-make kind-up          # cria cluster local com ingress + storage
-make bootstrap        # namespaces, Argo Workflows, Prometheus/Grafana
-make build-api        # (opcional) constrói imagem local e carrega no kind
-make deploy-api       # aplica manifests do repositório spot-render-api (overlay local)
-make deploy-portal    # idem para o portal
-make deploy-argo      # instala workflows/sensores e worker
+make kind-up           # cria cluster local com ingress
+make bootstrap         # namespaces, storage compartilhado, Argo, Prometheus/Grafana
+make build-api         # (opcional) constrói imagem local
+make load-images       # carrega imagens no Kind
+make deploy-api        # aplica overlay local (PVC + STORAGE_MODE=local)
+make deploy-portal
+make deploy-argo       # aplica workflow local (render-workflow-local)
 make deploy-observability
 ```
+
+Para disparar um render manualmente (até termos watcher automático):
+
+```bash
+make submit-local KEY="input/projeto/variacao/timestamp/arquivo.blend" PROJECT=projeto VARIATION=variacao ARTIST=nome
+```
+
+Use `ls /tmp/spot-render-storage/input` para encontrar o `KEY` criado após o upload.
 
 Após o deploy:
 - Portal disponível em `https://spot-render.local` (ingress nginx).  

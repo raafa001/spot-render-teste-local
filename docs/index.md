@@ -8,7 +8,8 @@ Executar toda a stack Spot Render em um cluster local (Kind/Minikube) para desen
 2. `make kind-up` para criar o cluster.  
 3. `make bootstrap` para instalar namespaces, Argo, Prometheus/Grafana.  
 4. Construa as imagens localmente (`make build-api build-portal build-argo`) e carregue (`make load-images`).  
-5. Implante serviços (`make deploy-api deploy-portal deploy-argo deploy-observability`).
+5. Implante serviços (`make deploy-api deploy-portal deploy-argo deploy-observability`).  
+6. Para processar um arquivo específico, use `make submit-local KEY=... PROJECT=... VARIATION=... ARTIST=...` e monitore o workflow `render-workflow-local`.
 
 ## Render lists
 - Armazene arquivos confidenciais em `assets/renderlists/`.  
