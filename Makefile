@@ -52,7 +52,7 @@ deploy-argo: deploy-storage
 
 deploy-observability:
 	kubectl apply -n monitoring -f ../spot-render-observability/prometheus/alerts/canary-rules.yaml
-	kubectl apply -n monitoring -f ../spot-render-observability/grafana/dashboards
+	kubectl apply -n monitoring -f ../spot-render-observability/grafana/dashboards/rendering-configmap.yaml
 
 submit-local:
 	@if [ -z "$(KEY)" ]; then echo "Use make submit-local KEY=path/to/file project=..."; exit 1; fi
