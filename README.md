@@ -67,6 +67,15 @@ make submit-local KEY="input/<projeto>/<variacao>/<timestamp>/<arquivo>" \
 ```
 (Troque o IP se o cluster expuser o ingress por outro endereço.) O `setup-local.sh` já grava `spot-render-portal/.env.local` com `NEXT_PUBLIC_API_URL=http://api.spot-render.local` e o overlay `k8s/overlays/api-local` publica um Ingress apontando `api.spot-render.local` → `spot-render-backend-stable`. Assim, o navegador consegue consumir `http://api.spot-render.local/*` sem precisar de port-forward. Se preferir `localhost`, execute o script com `PORTAL_API_URL=http://localhost:8080` e faça port-forward para o serviço da API.
 
+**Checklist pós-deploy (evita erros de DNS/ingress):**
+```bash
+kubectl get pods -n spot-render -l app=spot-render-backend
+kubectl argo rollouts get rollout spot-render-backend -n spot-render
+kubectl get ingress -n spot-render
+curl -k http://api.spot-render.local/health/summary
+```
+Caso a API não responda, garanta que o ServiceAccount `spot-render-backend` esteja criado (já incluso nos manifests) e, se necessário, rode `kubectl argo rollouts retry spot-render-backend -n spot-render` após atualizar a imagem.
+
 ### URLs e acesso (AWS/Produção)
 > **PT-BR:** Portal oficial: `https://portal.spot-render.aws.company.com` (UI leve com logo **SPOT-RENDER**). API: `https://api.spot-render.aws.company.com`. Ao publicar o portal, defina `NEXT_PUBLIC_API_URL=https://api.spot-render.aws.company.com`. Para automação, utilize tokens/SAML e chame `curl -H 'Authorization: Bearer <token>' https://api.spot-render.aws.company.com/jobs`.  
 > **EN:** Production portal: `https://portal.spot-render.aws.company.com` (same lightweight UX, SPOT-RENDER branding). API endpoint: `https://api.spot-render.aws.company.com`. Configure `NEXT_PUBLIC_API_URL` before building and call the API with the appropriate auth token.
