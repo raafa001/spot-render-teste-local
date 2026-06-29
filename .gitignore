@@ -1,2 +1,3 @@
 assets/
 site/
+k8s/storage-hostpath.yaml

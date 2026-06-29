@@ -12,9 +12,11 @@ kind-down:
 bootstrap:
 	./scripts/bootstrap.sh
 
+HOST_STORAGE_ROOT ?= /tmp/spot-render-storage
+
 deploy-storage:
-	mkdir -p /tmp/spot-render-storage/input /tmp/spot-render-storage/output /tmp/spot-render-storage/error /tmp/spot-render-storage/renderlists
-	kubectl apply -f k8s/storage.yaml
+	mkdir -p $(HOST_STORAGE_ROOT)/input $(HOST_STORAGE_ROOT)/output $(HOST_STORAGE_ROOT)/error $(HOST_STORAGE_ROOT)/renderlists
+	HOST_STORAGE_ROOT=$(HOST_STORAGE_ROOT) envsubst < k8s/storage-hostpath.yaml.tpl | kubectl apply -f -
 
 build-api:
 	cd ../spot-render-api && docker build -t spot-render-api:dev .
