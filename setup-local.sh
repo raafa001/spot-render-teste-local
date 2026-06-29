@@ -114,6 +114,7 @@ mkdir -p \
   "$HOST_STORAGE_ROOT"/error \
   "$HOST_STORAGE_ROOT"/renderlists \
   "$HOST_STORAGE_ROOT"/data
+chmod -R 0777 "$HOST_STORAGE_ROOT"
 
 info "Reconciliando PV/PVC spot-render-storage"
 kubectl delete pvc spot-render-storage -n spot-render --ignore-not-found >/dev/null 2>&1 || true
