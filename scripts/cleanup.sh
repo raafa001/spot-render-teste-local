@@ -12,18 +12,22 @@ function warn() {
   echo "[!] $1"
 }
 
-info "Removing Spot Render Helm releases"
-for release in kube-prometheus-stack argo-workflows argo-events spot-sonarqube; do
-  if helm status "$release" -n monitoring >/dev/null 2>&1; then
-    helm uninstall "$release" -n monitoring >/dev/null 2>&1 || warn "Failed to uninstall $release"
+function uninstall_release() {
+  local release=$1
+  local namespace=$2
+  if helm status "$release" -n "$namespace" >/dev/null 2>&1; then
+    info "Removing Helm release '$release' (namespace: $namespace)"
+    helm uninstall "$release" -n "$namespace" >/dev/null 2>&1 || warn "Failed to uninstall $release"
+  else
+    info "Helm release '$release' (ns: $namespace) não encontrado. OK."
   fi
-done
-if helm status argo-workflows -n rendering >/dev/null 2>&1; then
-  helm uninstall argo-workflows -n rendering >/dev/null 2>&1 || true
-fi
-if helm status argo-events -n rendering >/dev/null 2>&1; then
-  helm uninstall argo-events -n rendering >/dev/null 2>&1 || true
-fi
+}
+
+info "Removing Spot Render Helm releases"
+uninstall_release argo-workflows rendering
+uninstall_release argo-events rendering
+uninstall_release kube-prometheus-stack monitoring
+uninstall_release spot-sonarqube monitoring
 
 info "Removing local Spot Render manifests"
 kubectl delete -k "$REPO_ROOT/k8s/overlays/api-local" --ignore-not-found >/dev/null 2>&1 || true

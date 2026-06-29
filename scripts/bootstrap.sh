@@ -4,6 +4,8 @@ set -euo pipefail
 REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 HOST_STORAGE_ROOT=${HOST_STORAGE_ROOT:-/tmp/spot-render-storage}
 SONAR_MONITORING_PASSCODE=${SONAR_MONITORING_PASSCODE:-spotrender}
+INSTALL_PROM_STACK=${INSTALL_PROM_STACK:-}
+INSTALL_SONAR=${INSTALL_SONAR:-}
 CLUSTER_CONTEXT=$(kubectl config current-context 2>/dev/null || echo "")
 if [[ -z "$CLUSTER_CONTEXT" ]]; then
   echo "[!] kubectl current-context not set. Please create a cluster (kind/minikube/docker-desktop) before running bootstrap."
@@ -29,6 +31,52 @@ function helm_release_exists() {
   helm status "$release" -n "$namespace" >/dev/null 2>&1
 }
 
+function parse_bool() {
+  local value="${1:-}"
+  value=${value,,}
+  if [[ "$value" == "y" || "$value" == "yes" || "$value" == "true" || "$value" == "1" ]]; then
+    return 0
+  fi
+  return 1
+}
+
+function ask_install_component() {
+  local __var=$1
+  local prompt=$2
+  local current=${!__var:-}
+  if [[ -n "$current" ]]; then
+    if parse_bool "$current"; then
+      printf -v "$__var" "true"
+    else
+      printf -v "$__var" "false"
+    fi
+    return
+  fi
+  local answer
+  read -r -p "$prompt [y/N]: " answer || true
+  if parse_bool "$answer"; then
+    printf -v "$__var" "true"
+  else
+    printf -v "$__var" "false"
+  fi
+}
+
+function is_yes_default_yes() {
+  local answer="${1:-}"
+  if [[ -z "$answer" ]]; then
+    return 0
+  fi
+  parse_bool "$answer"
+}
+
+function is_yes_default_no() {
+  local answer="${1:-}"
+  if [[ -z "$answer" ]]; then
+    return 1
+  fi
+  parse_bool "$answer"
+}
+
 function install_if_missing() {
   local release=$1
   local namespace=$2
@@ -40,6 +88,35 @@ function install_if_missing() {
   fi
   info "Installing Helm release '$release' ($chart)"
   helm upgrade --install "$release" "$chart" --namespace "$namespace" --create-namespace "$@" >/dev/null
+}
+
+function maybe_install_release() {
+  local release=$1
+  local namespace=$2
+  local friendly=$3
+  local chart=$4
+  shift 4
+  if helm_release_exists "$release" "$namespace"; then
+    info "Release '$release' já existe no namespace '$namespace'."
+    local reuse_answer
+    read -r -p "Deseja reutilizar esta instância de $friendly? [Y/n]: " reuse_answer || true
+    if is_yes_default_yes "$reuse_answer"; then
+      info "Reutilizando instância existente de $friendly."
+      return
+    fi
+    local new_answer
+    read -r -p "Deseja instalar uma nova instância separada de $friendly? [y/N]: " new_answer || true
+    if ! is_yes_default_no "$new_answer"; then
+      info "Mantendo apenas a instância existente de $friendly."
+      return
+    fi
+    local new_release
+    read -r -p "Informe o nome do novo release (padrão: ${release}-extra): " new_release || true
+    new_release=${new_release:-${release}-extra}
+    install_if_missing "$new_release" "$namespace" "$chart" "$@"
+    return
+  fi
+  install_if_missing "$release" "$namespace" "$chart" "$@"
 }
 
 if [[ $CLUSTER_CONTEXT == kind* ]]; then
@@ -76,20 +153,31 @@ install_if_missing argo-workflows rendering argo/argo-workflows \
 
 install_if_missing argo-events rendering argo/argo-events
 
-install_if_missing kube-prometheus-stack monitoring prometheus-community/kube-prometheus-stack \
-  --set prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.storageClassName=$STORAGE_CLASS \
-  --set prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.resources.requests.storage=20Gi \
-  --set grafana.persistence.enabled=true \
-  --set grafana.persistence.storageClassName=$STORAGE_CLASS \
-  --set grafana.persistence.size=5Gi
+ask_install_component INSTALL_PROM_STACK "Deseja instalar Prometheus + Grafana (kube-prometheus-stack)?"
+if [[ "$INSTALL_PROM_STACK" == "true" ]]; then
+  maybe_install_release kube-prometheus-stack monitoring "Prometheus + Grafana" prometheus-community/kube-prometheus-stack \
+    --set prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.storageClassName=$STORAGE_CLASS \
+    --set prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.resources.requests.storage=20Gi \
+    --set grafana.persistence.enabled=true \
+    --set grafana.persistence.storageClassName=$STORAGE_CLASS \
+    --set grafana.persistence.size=5Gi
+else
+  info "Prometheus + Grafana marcados como opcionais. Pulando instalação."
+fi
 
-install_if_missing spot-sonarqube monitoring sonarqube/sonarqube \
-  --set monitoringPasscode=$SONAR_MONITORING_PASSCODE \
-  --set persistence.enabled=true \
-  --set persistence.storageClass=$STORAGE_CLASS \
-  --set persistence.size=20Gi \
-  --set postgresql.persistence.enabled=true \
-  --set postgresql.persistence.storageClass=$STORAGE_CLASS \
-  --set postgresql.persistence.size=10Gi
+ask_install_component INSTALL_SONAR "Deseja instalar SonarQube local?"
+if [[ "$INSTALL_SONAR" == "true" ]]; then
+  maybe_install_release spot-sonarqube monitoring "SonarQube" sonarqube/sonarqube \
+    --set community.enabled=true \
+    --set monitoringPasscode=$SONAR_MONITORING_PASSCODE \
+    --set persistence.enabled=true \
+    --set persistence.storageClass=$STORAGE_CLASS \
+    --set persistence.size=20Gi \
+    --set postgresql.persistence.enabled=true \
+    --set postgresql.persistence.storageClass=$STORAGE_CLASS \
+    --set postgresql.persistence.size=10Gi
+else
+  info "SonarQube marcado como opcional. Pulando instalação."
+fi
 
 info "Bootstrap complete for context '$CLUSTER_CONTEXT'."

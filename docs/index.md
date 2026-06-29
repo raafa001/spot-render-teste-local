@@ -10,10 +10,16 @@ Executar toda a stack Spot Render em um cluster local (Kind/Minikube/Docker Desk
 - Clona/atualiza todos os repositórios `spot-render-*`.  
 - Detecta o cluster atual (Kind/Minikube/Docker Desktop) e cria/valida se necessário.  
 - Provisiona o storage hostPath (configurável via `HOST_STORAGE_ROOT`).  
-- Instala Argo Workflows/Events, Prometheus + Grafana e SonarQube com PVCs persistentes.  
+- Instala Argo Workflows/Events e pergunta se você deseja provisionar Prometheus + Grafana e/ou SonarQube com PVCs persistentes.  
 - Constrói/carrega imagens locais e aplica os manifestos (API, portal, workflows, observabilidade).
 
 Para clusters Docker Desktop no WSL2, execute com `HOST_STORAGE_ROOT=/run/desktop/mnt/host/c/tmp/spot-render-storage`.
+
+## Variáveis úteis
+- `INSTALL_PROM_STACK=true|false` – força (ou pula) a instalação do kube-prometheus-stack sem prompt.  
+- `INSTALL_SONAR=true|false` – idem para SonarQube.  
+- `SONAR_MONITORING_PASSCODE=<valor>` – define o passcode exigido pelo chart do SonarQube.  
+- `HOST_STORAGE_ROOT=<path>` – diretório local compartilhado com o cluster.
 
 ## Passos manuais
 1. `make kind-up`
@@ -38,6 +44,7 @@ Para clusters Docker Desktop no WSL2, execute com `HOST_STORAGE_ROOT=/run/deskto
 
 ## Limpeza rápida
 - `./scripts/cleanup.sh` remove releases Helm, deleta os manifestos aplicados (`k8s/overlays/*`, storage, namespaces) e limpa `HOST_STORAGE_ROOT` (padrão `/tmp/spot-render-storage`).
+- `./teardown-local.sh` é um atalho na raiz que chama o script acima.
 
 ## Spot Render Sync (AWS)
 - O portal disponibilizará o executável **Spot Render Sync** em `https://portal.spot-render.aws.company.com/downloads/spot-render-sync-<os>` (Windows/macOS/Linux).  

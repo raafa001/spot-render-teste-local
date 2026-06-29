@@ -20,6 +20,17 @@ O script:
 5. Aplica os manifests (API canário, portal, workflows locais e observabilidade).  
 6. Exibe instruções finais (port-forward, envio de jobs etc.).
 
+### Componentes opcionais
+- Durante `setup-local.sh`, o script pergunta se você deseja instalar **Prometheus + Grafana** (kube-prometheus-stack) e/ou **SonarQube**.  
+- Se já existir uma instalação no cluster, o script informa e pergunta se deseja reaproveitar ou criar uma nova instância.  
+- Para rodar sem interação, defina as variáveis: `INSTALL_PROM_STACK=true|false`, `INSTALL_SONAR=true|false`, `SONAR_MONITORING_PASSCODE=<passcode>`.
+
+### Variáveis úteis
+- `HOST_STORAGE_ROOT`: caminho local compartilhado com o cluster (padrão `/tmp/spot-render-storage`).  
+- `INSTALL_PROM_STACK` / `INSTALL_SONAR`: definem se Prometheus/Grafana e SonarQube devem (ou não) ser instalados sem prompt.  
+- `SONAR_MONITORING_PASSCODE`: passcode necessário para o chart do SonarQube quando instalado.  
+- `BASE_DIR`: diretório onde os repositórios `spot-render-*` serão clonados/atualizados.
+
 > **WSL/Docker Desktop:** defina `HOST_STORAGE_ROOT` apontando para um diretório disponível no Windows, por exemplo `HOST_STORAGE_ROOT=/run/desktop/mnt/host/c/tmp/spot-render-storage ./setup-local.sh`. Esse caminho será montado nos pods e preservará os dados (render lists, frames, Sonar, Grafana, Prometheus).
 
 ## Passos manuais (opcional)
@@ -62,6 +73,7 @@ make submit-local KEY="input/<projeto>/<variacao>/<timestamp>/<arquivo>" \
 
 ## Limpeza rápida
 - `./scripts/cleanup.sh` ou `./teardown-local.sh` (atalho na raiz) removem os releases Helm (Argo, Prometheus, Sonar), excluem os manifests aplicados (`k8s/overlays/*`, storage, namespaces) e apagam o diretório host configurado em `HOST_STORAGE_ROOT` (por padrão `/tmp/spot-render-storage`). Ideal para garantir que não fiquem resíduos de testes.
+- O script de limpeza valida a existência dos recursos antes de tentar removê-los, evitando erros quando nada foi instalado.
 
 ## Spot Render Sync (AWS)
 - O portal disponibilizará downloads do **Spot Render Sync** (Windows `.msi`, macOS `.dmg`, Linux `.AppImage`) em `https://portal.spot-render.aws.company.com/downloads/spot-render-sync-<os>`.  
@@ -79,6 +91,7 @@ kind-config.yaml
 Makefile
 scripts/bootstrap.sh
 setup-local.sh
+teardown-local.sh
 ```
 
 ## TechDocs
