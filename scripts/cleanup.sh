@@ -34,6 +34,11 @@ kubectl delete -k "$REPO_ROOT/k8s/overlays/api-local" --ignore-not-found >/dev/n
 kubectl delete -k "$REPO_ROOT/k8s/overlays/argo-local" --ignore-not-found >/dev/null 2>&1 || true
 kubectl delete -f "$REPO_ROOT/k8s/namespaces.yaml" --ignore-not-found >/dev/null 2>&1 || true
 kubectl delete -f "$REPO_ROOT/k8s/storage.yaml" --ignore-not-found >/dev/null 2>&1 || true
+if command -v envsubst >/dev/null 2>&1; then
+  HOST_STORAGE_ROOT="$HOST_STORAGE_ROOT" envsubst < "$REPO_ROOT/k8s/storage-hostpath.yaml.tpl" | kubectl delete -f - --ignore-not-found >/dev/null 2>&1 || true
+else
+  warn "envsubst não encontrado; pulei remoção dos recursos storage-hostpath"
+fi
 
 info "Deleting namespaces (spot-render, rendering, monitoring)"
 for ns in spot-render rendering monitoring; do

@@ -17,6 +17,10 @@ function info() {
   echo "[+] $1"
 }
 
+function warn() {
+  echo "[!] $1"
+}
+
 function ensure_local_path() {
   if kubectl get sc local-path >/dev/null 2>&1; then
     return
@@ -27,10 +31,17 @@ function ensure_local_path() {
 }
 
 function detect_argo_namespace() {
-  local existing
-  existing=$(kubectl get ns -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' | grep '^argo' || true)
-  if [[ -n "$existing" ]]; then
-    echo "$existing" | head -n1
+  local candidate
+  for candidate in argo-rollouts argo argo-system; do
+    if kubectl get namespace "$candidate" >/dev/null 2>&1; then
+      echo "$candidate"
+      return
+    fi
+  done
+  local dynamic
+  dynamic=$(kubectl get ns -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' | grep '^argo' | head -n1 || true)
+  if [[ -n "$dynamic" ]]; then
+    echo "$dynamic"
   else
     echo "argo-rollouts"
   fi
@@ -56,7 +67,7 @@ function ensure_argo_rollouts() {
   fi
   answer=${answer,,}
   if [[ "$answer" == "n" || "$answer" == "no" ]]; then
-    warn "Argo Rollouts não será instalado. Rollouts customizados podem falhar." 
+    warn "Argo Rollouts não será instalado. Rollouts customizados podem falhar."
     return
   fi
   local ns
