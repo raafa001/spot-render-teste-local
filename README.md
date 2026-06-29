@@ -61,7 +61,7 @@ make submit-local KEY="input/<projeto>/<variacao>/<timestamp>/<arquivo>" \
 - `kubectl port-forward -n monitoring svc/spot-sonarqube-sonarqube 9000:9000` → SonarQube local.
 
 ## Limpeza rápida
-- `./scripts/cleanup.sh` remove os releases Helm (Argo, Prometheus, Sonar), exclui os manifests aplicados (`k8s/overlays/*`, storage, namespaces) e apaga o diretório host configurado em `HOST_STORAGE_ROOT` (por padrão `/tmp/spot-render-storage`). Ideal para garantir que não fiquem resíduos de testes.
+- `./scripts/cleanup.sh` ou `./teardown-local.sh` (atalho na raiz) removem os releases Helm (Argo, Prometheus, Sonar), excluem os manifests aplicados (`k8s/overlays/*`, storage, namespaces) e apagam o diretório host configurado em `HOST_STORAGE_ROOT` (por padrão `/tmp/spot-render-storage`). Ideal para garantir que não fiquem resíduos de testes.
 
 ## Spot Render Sync (AWS)
 - O portal disponibilizará downloads do **Spot Render Sync** (Windows `.msi`, macOS `.dmg`, Linux `.AppImage`) em `https://portal.spot-render.aws.company.com/downloads/spot-render-sync-<os>`.  

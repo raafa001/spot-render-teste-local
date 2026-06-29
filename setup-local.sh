@@ -103,4 +103,6 @@ Para processar arquivos:
 1. Faça upload via portal ou CLI com STORAGE_MODE=local
 2. Liste os arquivos em $HOST_STORAGE_ROOT/shared e rode:
    make submit-local KEY="input/<proj>/<var>/<timestamp>/<arquivo>" PROJECT=<proj> VARIATION=<var> ARTIST=<nome>
+
+Quando terminar, execute ./teardown-local.sh (ou ./scripts/cleanup.sh) para remover os recursos e limpar o storage local.
 MSG
