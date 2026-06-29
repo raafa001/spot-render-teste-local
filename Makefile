@@ -33,7 +33,7 @@ load-images:
 	kind load docker-image --name $(CLUSTER_NAME) spot-render-worker:dev
 
 deploy-api: deploy-storage
-	kubectl apply -k k8s/overlays/api-local
+	kubectl apply --load-restrictor=LoadRestrictionsNone -k k8s/overlays/api-local
 
 deploy-portal:
 	kubectl apply -n spot-render -f ../spot-render-portal/k8s/services.yaml
@@ -41,7 +41,7 @@ deploy-portal:
 	kubectl apply -n spot-render -f ../spot-render-portal/k8s/hpa.yaml
 
 deploy-argo: deploy-storage
-	kubectl apply -k k8s/overlays/argo-local
+	kubectl apply --load-restrictor=LoadRestrictionsNone -k k8s/overlays/argo-local
 
 deploy-observability:
 	kubectl apply -n monitoring -f ../spot-render-observability/prometheus/alerts/canary-rules.yaml

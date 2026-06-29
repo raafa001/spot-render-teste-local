@@ -29,7 +29,9 @@ O script:
 - `HOST_STORAGE_ROOT`: caminho local compartilhado com o cluster (padrão `/tmp/spot-render-storage`).  
 - `INSTALL_PROM_STACK` / `INSTALL_SONAR`: definem se Prometheus/Grafana e SonarQube devem (ou não) ser instalados sem prompt.  
 - `SONAR_MONITORING_PASSCODE`: passcode necessário para o chart do SonarQube quando instalado.  
-- `BASE_DIR`: diretório onde os repositórios `spot-render-*` serão clonados/atualizados.
+- `BASE_DIR`: diretório onde os repositórios `spot-render-*` serão clonados/atualizados.  
+- `API_IMAGE`, `PORTAL_IMAGE`, `WORKER_IMAGE`: substituem as imagens geradas automaticamente pelo `setup-local.sh` (por padrão cada imagem recebe a tag `sha-<git-short>`).  
+- `KUSTOMIZE_LOAD_RESTRICTOR=LoadRestrictionsNone`: já aplicado automaticamente nos `make deploy-api`/`deploy-argo`, permitindo que os overlays façam referência aos manifests hospedados nos outros repositórios `spot-render-*`.
 
 > **WSL/Docker Desktop:** defina `HOST_STORAGE_ROOT` apontando para um diretório disponível no Windows, por exemplo `HOST_STORAGE_ROOT=/run/desktop/mnt/host/c/tmp/spot-render-storage ./setup-local.sh`. Esse caminho será montado nos pods e preservará os dados (render lists, frames, Sonar, Grafana, Prometheus).
 

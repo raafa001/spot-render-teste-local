@@ -20,6 +20,8 @@ Para clusters Docker Desktop no WSL2, execute com `HOST_STORAGE_ROOT=/run/deskto
 - `INSTALL_SONAR=true|false` – idem para SonarQube.  
 - `SONAR_MONITORING_PASSCODE=<valor>` – define o passcode exigido pelo chart do SonarQube.  
 - `HOST_STORAGE_ROOT=<path>` – diretório local compartilhado com o cluster.
+- `API_IMAGE`, `PORTAL_IMAGE`, `WORKER_IMAGE` – sobrescrevem as imagens tagueadas com `sha-<git-short>` geradas automaticamente pelo `setup-local.sh`.  
+- Os targets `make deploy-api`/`deploy-argo` já executam `kubectl apply --load-restrictor=LoadRestrictionsNone` para permitir que os overlays referenciem manifests vindos dos demais repositórios.
 
 ## Passos manuais
 1. `make kind-up`
