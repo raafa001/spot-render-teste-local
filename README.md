@@ -60,6 +60,13 @@ make submit-local KEY="input/<projeto>/<variacao>/<timestamp>/<arquivo>" \
 > **PT-BR:** Portal em `https://spot-render.local` (Ingress) utilizando `NEXT_PUBLIC_API_URL=https://api.spot-render.local`. Use o formulário para enviar arquivos/render lists e acompanhar o progresso. A API fica em `https://api.spot-render.local` e aceita `POST /uploads`, `GET /jobs`, `PATCH /jobs/{id}/progress`. Exemplo: `curl -k -X POST https://api.spot-render.local/uploads/ -F file=@scene.blend -F project=demo -F variation=v1 -F artist=alice`.  
 > **EN:** Portal lives at `https://spot-render.local` (Ingress) with `NEXT_PUBLIC_API_URL=https://api.spot-render.local`. Use the upload form to send files/render lists; call the API (`POST /uploads`, `GET /jobs`, `PATCH /jobs/{id}/progress`) for automation.
 
+**Hosts obrigatórios (local):**
+```
+127.0.0.1 spot-render.local
+127.0.0.1 api.spot-render.local
+```
+(Troque o IP se o cluster expuser o ingress por outro endereço.) O `setup-local.sh` já grava `spot-render-portal/.env.local` com `NEXT_PUBLIC_API_URL=http://api.spot-render.local` e o overlay `k8s/overlays/api-local` publica um Ingress apontando `api.spot-render.local` → `spot-render-backend-stable`. Assim, o navegador consegue consumir `http://api.spot-render.local/*` sem precisar de port-forward. Se preferir `localhost`, execute o script com `PORTAL_API_URL=http://localhost:8080` e faça port-forward para o serviço da API.
+
 ### URLs e acesso (AWS/Produção)
 > **PT-BR:** Portal oficial: `https://portal.spot-render.aws.company.com` (UI leve com logo **SPOT-RENDER**). API: `https://api.spot-render.aws.company.com`. Ao publicar o portal, defina `NEXT_PUBLIC_API_URL=https://api.spot-render.aws.company.com`. Para automação, utilize tokens/SAML e chame `curl -H 'Authorization: Bearer <token>' https://api.spot-render.aws.company.com/jobs`.  
 > **EN:** Production portal: `https://portal.spot-render.aws.company.com` (same lightweight UX, SPOT-RENDER branding). API endpoint: `https://api.spot-render.aws.company.com`. Configure `NEXT_PUBLIC_API_URL` before building and call the API with the appropriate auth token.

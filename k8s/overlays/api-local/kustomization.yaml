@@ -6,5 +6,6 @@ resources:
   - ../../../../spot-render-api/k8s/rollout.yaml
   - ../../../../spot-render-api/k8s/hpa.yaml
   - ../../../../spot-render-api/k8s/servicemonitor.yaml
+  - ingress.yaml
 patchesStrategicMerge:
   - rollout-patch.yaml

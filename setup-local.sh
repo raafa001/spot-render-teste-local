@@ -13,7 +13,8 @@ WORKER_SHA=$(cd "$BASE_DIR/spot-render-argo" && git rev-parse --short HEAD)
 API_IMAGE=${API_IMAGE:-spot-render-backend:$API_SHA}
 PORTAL_IMAGE=${PORTAL_IMAGE:-spot-render-web:$PORTAL_SHA}
 WORKER_IMAGE=${WORKER_IMAGE:-spot-render-worker:$WORKER_SHA}
-PORTAL_API_URL=${PORTAL_API_URL:-http://spot-render-api.spot-render.svc.cluster.local:8000}
+PORTAL_API_URL=${PORTAL_API_URL:-http://api.spot-render.local}
+PORTAL_ENV_FILE="$BASE_DIR/spot-render-portal/.env.local"
 
 function info(){ echo "[+] $1"; }
 function warn(){ echo "[!] $1"; }
@@ -104,6 +105,13 @@ esac
 
 info "Running bootstrap"
 HOST_STORAGE_ROOT="$HOST_STORAGE_ROOT" "$REPO_ROOT/scripts/bootstrap.sh"
+
+if [[ -n "$PORTAL_ENV_FILE" ]]; then
+  info "Configurando $PORTAL_ENV_FILE com NEXT_PUBLIC_API_URL=$PORTAL_API_URL"
+  cat <<EOF > "$PORTAL_ENV_FILE"
+NEXT_PUBLIC_API_URL=$PORTAL_API_URL
+EOF
+fi
 
 info "Building container images"
 (cd "$BASE_DIR/spot-render-api" && docker build -t "$API_IMAGE" .)

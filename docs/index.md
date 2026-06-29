@@ -34,7 +34,7 @@ Para clusters Docker Desktop no WSL2, execute com `HOST_STORAGE_ROOT=/run/deskto
 6. `make submit-local KEY=... PROJECT=... VARIATION=... ARTIST=...`
 
 ## URLs
-- **Local:** Portal `https://spot-render.local`, API `https://api.spot-render.local`. Ajuste `NEXT_PUBLIC_API_URL` para o endpoint local antes do build do portal.  
+- **Local:** Portal `https://spot-render.local`, API `https://api.spot-render.local`. O `setup-local.sh` grava automaticamente `spot-render-portal/.env.local` com `NEXT_PUBLIC_API_URL=http://api.spot-render.local` e o overlay `api-local` publica um Ingress apontando `api.spot-render.local` → `spot-render-backend-stable`. Adicione `127.0.0.1 spot-render.local` e `127.0.0.1 api.spot-render.local` ao arquivo de hosts (ou ajuste o IP conforme necessário) para acessar sem port-forward.  
 - **AWS:** Portal `https://portal.spot-render.aws.company.com`, API `https://api.spot-render.aws.company.com` (autenticada). A UI deve permanecer leve, intuitiva e com a logo **SPOT-RENDER**.
 
 ## Render lists
