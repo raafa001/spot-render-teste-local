@@ -26,6 +26,16 @@ function ensure_local_path() {
   kubectl -n local-path-storage patch storageclass local-path -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}' >/dev/null
 }
 
+function detect_argo_namespace() {
+  local existing
+  existing=$(kubectl get ns -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' | grep '^argo' || true)
+  if [[ -n "$existing" ]]; then
+    echo "$existing" | head -n1
+  else
+    echo "argo-rollouts"
+  fi
+}
+
 function ensure_kustomize() {
   if command -v kustomize >/dev/null 2>&1; then
     return
@@ -40,7 +50,17 @@ function ensure_argo_rollouts() {
     info "Argo Rollouts CRDs já presentes"
     return
   fi
-  local ns="argo-rollouts"
+  local answer=${INSTALL_ARGO_ROLLOUTS:-}
+  if [[ -z "$answer" ]]; then
+    read -r -p "Argo Rollouts não encontrado. Deseja instalar localmente? [Y/n]: " answer || true
+  fi
+  answer=${answer,,}
+  if [[ "$answer" == "n" || "$answer" == "no" ]]; then
+    warn "Argo Rollouts não será instalado. Rollouts customizados podem falhar." 
+    return
+  fi
+  local ns
+  ns=$(detect_argo_namespace)
   if kubectl get namespace "$ns" >/dev/null 2>&1; then
     info "Reutilizando namespace '$ns' para Argo Rollouts"
   else
