@@ -1,7 +1,7 @@
 CLUSTER_NAME ?= spot-render-local
 KIND_NODE_IMAGE ?= kindest/node:v1.30.0
 
-.PHONY: kind-up kind-down bootstrap build-api build-portal build-argo load-images deploy-storage deploy-api deploy-portal deploy-argo deploy-observability submit-local
+.PHONY: kind-up kind-down bootstrap build-api build-portal build-argo load-images deploy-storage deploy-api deploy-portal deploy-argo deploy-observability submit-local cleanup
 
 kind-up:
 	kind create cluster --name $(CLUSTER_NAME) --image $(KIND_NODE_IMAGE) --config kind-config.yaml
@@ -51,3 +51,6 @@ submit-local:
 	@if [ -z "$(KEY)" ]; then echo "Use make submit-local KEY=path/to/file project=..."; exit 1; fi
 	argo submit -n rendering --from workflowtemplate/render-workflow-local \
 		-p key=$(KEY) -p project=$(PROJECT) -p variation=$(VARIATION) -p artist=$(ARTIST)
+
+cleanup:
+	./scripts/cleanup.sh

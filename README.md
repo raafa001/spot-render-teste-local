@@ -39,6 +39,14 @@ make submit-local KEY="input/<projeto>/<variacao>/<timestamp>/<arquivo>" \
 ```
 (obtenha o `KEY` inspecionando `HOST_STORAGE_ROOT/shared`).
 
+### URLs e acesso (Local)
+> **PT-BR:** Portal em `https://spot-render.local` (Ingress) utilizando `NEXT_PUBLIC_API_URL=https://api.spot-render.local`. Use o formulário para enviar arquivos/render lists e acompanhar o progresso. A API fica em `https://api.spot-render.local` e aceita `POST /uploads`, `GET /jobs`, `PATCH /jobs/{id}/progress`. Exemplo: `curl -k -X POST https://api.spot-render.local/uploads/ -F file=@scene.blend -F project=demo -F variation=v1 -F artist=alice`.  
+> **EN:** Portal lives at `https://spot-render.local` (Ingress) with `NEXT_PUBLIC_API_URL=https://api.spot-render.local`. Use the upload form to send files/render lists; call the API (`POST /uploads`, `GET /jobs`, `PATCH /jobs/{id}/progress`) for automation.
+
+### URLs e acesso (AWS/Produção)
+> **PT-BR:** Portal oficial: `https://portal.spot-render.aws.company.com` (UI leve com logo **SPOT-RENDER**). API: `https://api.spot-render.aws.company.com`. Ao publicar o portal, defina `NEXT_PUBLIC_API_URL=https://api.spot-render.aws.company.com`. Para automação, utilize tokens/SAML e chame `curl -H 'Authorization: Bearer <token>' https://api.spot-render.aws.company.com/jobs`.  
+> **EN:** Production portal: `https://portal.spot-render.aws.company.com` (same lightweight UX, SPOT-RENDER branding). API endpoint: `https://api.spot-render.aws.company.com`. Configure `NEXT_PUBLIC_API_URL` before building and call the API with the appropriate auth token.
+
 ## Render lists
 - Coloque as listas privadas em `assets/renderlists/` (não versionadas).  
 - Faça upload via portal/CLI selecionando o campo **Render list** ou marcando “Nova render list padrão” (credenciais default `admin/admin`).
@@ -51,6 +59,14 @@ make submit-local KEY="input/<projeto>/<variacao>/<timestamp>/<arquivo>" \
 ## Observabilidade
 - `kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80`  → Grafana (importar dashboard `spot-render-observability/grafana/dashboards/rendering.json`).  
 - `kubectl port-forward -n monitoring svc/spot-sonarqube-sonarqube 9000:9000` → SonarQube local.
+
+## Limpeza rápida
+- `./scripts/cleanup.sh` remove os releases Helm (Argo, Prometheus, Sonar), exclui os manifests aplicados (`k8s/overlays/*`, storage, namespaces) e apaga o diretório host configurado em `HOST_STORAGE_ROOT` (por padrão `/tmp/spot-render-storage`). Ideal para garantir que não fiquem resíduos de testes.
+
+## Spot Render Sync (AWS)
+- O portal disponibilizará downloads do **Spot Render Sync** (Windows `.msi`, macOS `.dmg`, Linux `.AppImage`) em `https://portal.spot-render.aws.company.com/downloads/spot-render-sync-<os>`.  
+- O agente monitora as pastas configuradas pelos artistas (por projeto) e envia automaticamente os arquivos para os buckets definidos no `PROJECT_ROUTE_CONFIG`, sem precisar abrir o portal.  
+- Interface leve/tray, com a logo **SPOT-RENDER**, pensada para ambientes AWS; em ambientes locais continue utilizando portal/API/CLI.
 
 ## Estrutura
 ```

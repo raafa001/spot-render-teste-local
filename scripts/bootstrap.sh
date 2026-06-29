@@ -69,7 +69,7 @@ helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheu
   --set grafana.persistence.storageClassName=$STORAGE_CLASS \
   --set grafana.persistence.size=5Gi >/dev/null
 
-info "Installing SonarQube (local)">
+info "Installing SonarQube (local)"
 helm upgrade --install spot-sonarqube sonarqube/sonarqube \
   --namespace monitoring \
   --set persistence.enabled=true \
