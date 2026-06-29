@@ -123,8 +123,16 @@ fi
 
 if kubectl get workflowtemplate render-workflow-local -n rendering >/dev/null 2>&1; then
   info "Updating render-workflow-local worker image to $WORKER_IMAGE"
-  kubectl -n rendering patch workflowtemplate render-workflow-local --type='json' \
-    -p="[\n      {\"op\":\"replace\",\"path\":\"/spec/templates/1/container/image\",\"value\":\"$WORKER_IMAGE\"},\n      {\"op\":\"replace\",\"path\":\"/spec/templates/2/container/image\",\"value\":\"$WORKER_IMAGE\"}\n    ]" >/dev/null
+  patch_file=$(mktemp)
+  cat <<'EOF' > "$patch_file"
+[
+  {"op":"replace","path":"/spec/templates/1/container/image","value":"__IMAGE__"},
+  {"op":"replace","path":"/spec/templates/2/container/image","value":"__IMAGE__"}
+]
+EOF
+  sed -i "s|__IMAGE__|$WORKER_IMAGE|g" "$patch_file"
+  kubectl -n rendering patch workflowtemplate render-workflow-local --type='json' --patch-file "$patch_file" >/dev/null || warn "Falha ao atualizar render-workflow-local"
+  rm -f "$patch_file"
 fi
 
 cat <<MSG
