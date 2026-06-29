@@ -18,6 +18,27 @@ function info(){ echo "[+] $1"; }
 function warn(){ echo "[!] $1"; }
 function require_cmd(){ command -v "$1" >/dev/null || { echo "Command '$1' not found"; exit 1; }; }
 
+patch_rollout_image() {
+  local rollout=$1
+  local namespace=$2
+  local image=$3
+  if ! kubectl get rollout "$rollout" -n "$namespace" >/dev/null 2>&1; then
+    warn "Rollout $rollout não encontrado; pulei atualização"
+    return
+  fi
+  local patch_file
+  patch_file=$(mktemp)
+  cat <<EOF >"$patch_file"
+[
+  {"op":"replace","path":"/spec/template/spec/containers/0/image","value":"$image"}
+]
+EOF
+  if ! kubectl -n "$namespace" patch rollout "$rollout" --type='json' --patch-file "$patch_file" >/dev/null; then
+    warn "Falha ao atualizar rollout $rollout"
+  fi
+  rm -f "$patch_file"
+}
+
 require_cmd git
 require_cmd kubectl
 require_cmd helm
@@ -104,33 +125,21 @@ info "Deploying API/portal/Argo/observability"
 (cd "$REPO_ROOT" && make deploy-api deploy-portal deploy-argo deploy-observability)
 
 if kubectl get crd rollouts.argoproj.io >/dev/null 2>&1; then
-  if kubectl get rollout spot-render-backend -n spot-render >/dev/null 2>&1; then
-    info "Setting rollout spot-render-backend image to $API_IMAGE"
-    kubectl -n spot-render set image rollout/spot-render-backend spot-render-backend="$API_IMAGE" >/dev/null || warn "Falha ao atualizar rollout backend"
-  else
-    warn "Rollout spot-render-backend não encontrado; pulei atualização"
-  fi
-
-  if kubectl get rollout spot-render-web -n spot-render >/dev/null 2>&1; then
-    info "Setting rollout spot-render-web image to $PORTAL_IMAGE"
-    kubectl -n spot-render set image rollout/spot-render-web spot-render-web="$PORTAL_IMAGE" >/dev/null || warn "Falha ao atualizar rollout web"
-  else
-    warn "Rollout spot-render-web não encontrado; pulei atualização"
-  fi
+  patch_rollout_image spot-render-backend spot-render "$API_IMAGE"
+  patch_rollout_image spot-render-web spot-render "$PORTAL_IMAGE"
 else
-  warn "CRD rollouts.argoproj.io não disponível; pulando set image nos rollouts"
+  warn "CRD rollouts.argoproj.io não disponível; pulando atualização dos rollouts"
 fi
 
 if kubectl get workflowtemplate render-workflow-local -n rendering >/dev/null 2>&1; then
   info "Updating render-workflow-local worker image to $WORKER_IMAGE"
   patch_file=$(mktemp)
-  cat <<'EOF' > "$patch_file"
+  cat <<EOF > "$patch_file"
 [
-  {"op":"replace","path":"/spec/templates/1/container/image","value":"__IMAGE__"},
-  {"op":"replace","path":"/spec/templates/2/container/image","value":"__IMAGE__"}
+  {"op":"replace","path":"/spec/templates/1/container/image","value":"$WORKER_IMAGE"},
+  {"op":"replace","path":"/spec/templates/2/container/image","value":"$WORKER_IMAGE"}
 ]
 EOF
-  sed -i "s|__IMAGE__|$WORKER_IMAGE|g" "$patch_file"
   kubectl -n rendering patch workflowtemplate render-workflow-local --type='json' --patch-file "$patch_file" >/dev/null || warn "Falha ao atualizar render-workflow-local"
   rm -f "$patch_file"
 fi
