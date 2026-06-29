@@ -13,6 +13,8 @@ spec:
               value: local
             - name: LOCAL_STORAGE_ROOT
               value: /storage
+            - name: DATABASE_URL
+              value: sqlite:////storage/data/jobs.db
           volumeMounts:
             - name: render-storage
               mountPath: /storage
