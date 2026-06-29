@@ -32,7 +32,8 @@ O script:
 - `SONAR_MONITORING_PASSCODE`: passcode necessário para o chart do SonarQube quando instalado.  
 - `BASE_DIR`: diretório onde os repositórios `spot-render-*` serão clonados/atualizados.  
 - `API_IMAGE`, `PORTAL_IMAGE`, `WORKER_IMAGE`: substituem as imagens geradas automaticamente pelo `setup-local.sh` (por padrão cada imagem recebe a tag `sha-<git-short>`).  
-- Os targets `make deploy-api` e `make deploy-argo` renderizam os overlays com `kustomize build --load-restrictor LoadRestrictionsNone ... | kubectl apply -f -`, portanto o binário `kustomize` precisa estar instalado (override com `KUSTOMIZE=/caminho/para/kustomize`).
+- Os targets `make deploy-api` e `make deploy-argo` renderizam os overlays com `kustomize build --load-restrictor LoadRestrictionsNone ... | kubectl apply -f -`, portanto o binário `kustomize` precisa estar instalado (override com `KUSTOMIZE=/caminho/para/kustomize`).  
+- `ARGO_ROLLOUTS_VERSION`: versão utilizada para instalar automaticamente os CRDs/Controller do Argo Rollouts (padrão `v1.6.6`). O bootstrap detecta namespaces `argo-*` existentes (ex.: `argo-rollouts`, `argo-cd`) e reutiliza-os quando já presentes.
 - `KUSTOMIZE_LOAD_RESTRICTOR=LoadRestrictionsNone`: já aplicado automaticamente nos `make deploy-api`/`deploy-argo`, permitindo que os overlays façam referência aos manifests hospedados nos outros repositórios `spot-render-*`.
 
 > **WSL/Docker Desktop:** defina `HOST_STORAGE_ROOT` apontando para um diretório disponível no Windows, por exemplo `HOST_STORAGE_ROOT=/run/desktop/mnt/host/c/tmp/spot-render-storage ./setup-local.sh`. Esse caminho será montado nos pods e preservará os dados (render lists, frames, Sonar, Grafana, Prometheus).

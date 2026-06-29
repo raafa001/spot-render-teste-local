@@ -6,6 +6,7 @@ HOST_STORAGE_ROOT=${HOST_STORAGE_ROOT:-/tmp/spot-render-storage}
 SONAR_MONITORING_PASSCODE=${SONAR_MONITORING_PASSCODE:-spotrender}
 INSTALL_PROM_STACK=${INSTALL_PROM_STACK:-}
 INSTALL_SONAR=${INSTALL_SONAR:-}
+ARGO_ROLLOUTS_VERSION=${ARGO_ROLLOUTS_VERSION:-v1.6.6}
 CLUSTER_CONTEXT=$(kubectl config current-context 2>/dev/null || echo "")
 if [[ -z "$CLUSTER_CONTEXT" ]]; then
   echo "[!] kubectl current-context not set. Please create a cluster (kind/minikube/docker-desktop) before running bootstrap."
@@ -32,6 +33,22 @@ function ensure_kustomize() {
   info "kustomize não encontrado; instalando versão ${KUSTOMIZE_VERSION:-v5.4.1}"
   "$REPO_ROOT/scripts/install-kustomize.sh"
   export PATH="$HOME/.local/bin:$PATH"
+}
+
+function ensure_argo_rollouts() {
+  if kubectl get crd rollouts.argoproj.io >/dev/null 2>&1; then
+    info "Argo Rollouts CRDs já presentes"
+    return
+  fi
+  local ns="argo-rollouts"
+  if kubectl get namespace "$ns" >/dev/null 2>&1; then
+    info "Reutilizando namespace '$ns' para Argo Rollouts"
+  else
+    info "Criando namespace '$ns' para Argo Rollouts"
+    kubectl create namespace "$ns" >/dev/null
+  fi
+  info "Instalando Argo Rollouts ${ARGO_ROLLOUTS_VERSION} em '$ns'"
+  kubectl apply -n "$ns" -f "https://github.com/argoproj/argo-rollouts/releases/download/${ARGO_ROLLOUTS_VERSION}/install.yaml" >/dev/null
 }
 
 function helm_release_exists() {
@@ -155,6 +172,7 @@ helm repo add sonarqube https://SonarSource.github.io/helm-chart-sonarqube >/dev
 helm repo update >/dev/null
 
 ensure_kustomize
+ensure_argo_rollouts
 
 install_if_missing argo-workflows rendering argo/argo-workflows \
   --set server.extraArgs="{--auth-mode=server}" \

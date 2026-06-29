@@ -23,7 +23,7 @@ Para clusters Docker Desktop no WSL2, execute com `HOST_STORAGE_ROOT=/run/deskto
 - `SONAR_MONITORING_PASSCODE=<valor>` – define o passcode exigido pelo chart do SonarQube.  
 - `HOST_STORAGE_ROOT=<path>` – diretório local compartilhado com o cluster.
 - `API_IMAGE`, `PORTAL_IMAGE`, `WORKER_IMAGE` – sobrescrevem as imagens tagueadas com `sha-<git-short>` geradas automaticamente pelo `setup-local.sh`.  
-- Os targets `make deploy-api`/`deploy-argo` renderizam os overlays via `kustomize build --load-restrictor LoadRestrictionsNone <path> | kubectl apply -f -`, permitindo o uso de manifestos armazenados nos demais repositórios `spot-render-*`.
+- Os targets `make deploy-api`/`deploy-argo` renderizam os overlays via `kustomize build --load-restrictor LoadRestrictionsNone <path> | kubectl apply -f -`, permitindo o uso de manifestos armazenados nos demais repositórios `spot-render-*`. Durante o bootstrap, o script garante a instalação do Argo Rollouts (variável `ARGO_ROLLOUTS_VERSION`, padrão `v1.6.6`) reutilizando o namespace `argo-rollouts` existente ou criando-o caso não exista.
 
 ## Passos manuais
 1. `make kind-up`
