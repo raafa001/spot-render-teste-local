@@ -2,6 +2,7 @@
 set -euo pipefail
 
 CLUSTER_NAME="spot-render-local"
+STORAGE_PATH="/tmp/spot-render-storage"
 
 function info() {
   echo "[+] $1"
@@ -9,6 +10,10 @@ function info() {
 
 info "Creating namespaces"
 kubectl apply -f k8s/namespaces.yaml
+
+info "Preparing shared storage at $STORAGE_PATH"
+mkdir -p "$STORAGE_PATH/input" "$STORAGE_PATH/output" "$STORAGE_PATH/error" "$STORAGE_PATH/renderlists"
+kubectl apply -f k8s/storage.yaml
 
 info "Installing Argo Workflows"
 helm repo add argo https://argoproj.github.io/argo-helm >/dev/null

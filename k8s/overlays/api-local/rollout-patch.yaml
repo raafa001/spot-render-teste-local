@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: spot-render-api
+  namespace: spot-render
+spec:
+  template:
+    spec:
+      containers:
+        - name: api
+          env:
+            - name: STORAGE_MODE
+              value: local
+            - name: LOCAL_STORAGE_ROOT
+              value: /storage
+          volumeMounts:
+            - name: render-storage
+              mountPath: /storage
+      volumes:
+        - name: render-storage
+          persistentVolumeClaim:
+            claimName: spot-render-storage
