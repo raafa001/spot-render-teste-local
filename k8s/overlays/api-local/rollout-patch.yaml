@@ -1,13 +1,13 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Rollout
 metadata:
-  name: spot-render-api
+  name: spot-render-backend
   namespace: spot-render
 spec:
   template:
     spec:
       containers:
-        - name: api
+        - name: spot-render-backend
           env:
             - name: STORAGE_MODE
               value: local

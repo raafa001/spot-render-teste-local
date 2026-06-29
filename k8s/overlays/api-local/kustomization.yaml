@@ -1,4 +1,6 @@
 resources:
+  - ../../../../spot-render-api/k8s/configmap.yaml
+  - secret.yaml
   - ../../../../spot-render-api/k8s/services.yaml
   - ../../../../spot-render-api/k8s/analysis.yaml
   - ../../../../spot-render-api/k8s/rollout.yaml
