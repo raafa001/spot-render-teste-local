@@ -67,6 +67,8 @@ make submit-local KEY="input/<projeto>/<variacao>/<timestamp>/<arquivo>" \
 ```
 (Troque o IP se o cluster expuser o ingress por outro endereço.) O `setup-local.sh` já grava `spot-render-portal/.env.local` com `NEXT_PUBLIC_API_URL=http://api.spot-render.local` e o overlay `k8s/overlays/api-local` publica um Ingress apontando `api.spot-render.local` → `spot-render-backend-stable`. Assim, o navegador consegue consumir `http://api.spot-render.local/*` sem precisar de port-forward. Se preferir `localhost`, execute o script com `PORTAL_API_URL=http://localhost:8080` e faça port-forward para o serviço da API.
 
+O portal também possui um Ingress dedicado (`k8s/portal-ingress.yaml`) roteando `spot-render.local` → `spot-render-web-stable`. Com o ingress-nginx instalado automaticamente pelo `setup-local.sh`, basta acessar `http://spot-render.local` para abrir a UI.
+
 **Checklist pós-deploy (evita erros de DNS/ingress):**
 ```bash
 kubectl get pods -n spot-render -l app=spot-render-backend

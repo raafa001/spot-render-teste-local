@@ -46,6 +46,7 @@ deploy-portal:
 	kubectl apply -n spot-render -f ../spot-render-portal/k8s/services.yaml
 	kubectl apply -n spot-render -f ../spot-render-portal/k8s/rollout.yaml
 	kubectl apply -n spot-render -f ../spot-render-portal/k8s/hpa.yaml
+	kubectl apply -f k8s/portal-ingress.yaml
 
 deploy-argo: deploy-storage
 	$(call kustomize_apply,k8s/overlays/argo-local)
