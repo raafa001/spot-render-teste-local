@@ -29,6 +29,11 @@ uninstall_release argo-events rendering
 uninstall_release kube-prometheus-stack monitoring
 uninstall_release spot-sonarqube monitoring
 
+if kubectl get ns ingress-nginx >/dev/null 2>&1; then
+  info "Removing ingress-nginx controller"
+  kubectl delete ns ingress-nginx --ignore-not-found >/dev/null 2>&1 || true
+fi
+
 info "Removing local Spot Render manifests"
 kubectl delete -k "$REPO_ROOT/k8s/overlays/api-local" --ignore-not-found >/dev/null 2>&1 || true
 kubectl delete -k "$REPO_ROOT/k8s/overlays/argo-local" --ignore-not-found >/dev/null 2>&1 || true

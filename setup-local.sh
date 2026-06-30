@@ -86,17 +86,35 @@ case "$CLUSTER_MODE" in
     if ! kind get clusters | grep -q "spot-render-local"; then
       (cd "$REPO_ROOT" && make kind-up)
     fi
+    if ! kubectl get ns ingress-nginx >/dev/null 2>&1; then
+      info "Instalando ingress-nginx (kind)"
+      kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+      kubectl wait --namespace ingress-nginx \
+        --for=condition=ready pod \
+        --selector=app.kubernetes.io/component=controller \
+        --timeout=120s
+    fi
     ;;
   minikube)
     require_cmd minikube
     if ! minikube status >/dev/null 2>&1; then
       minikube start
     fi
+    info "Habilitando ingress addon no Minikube"
+    minikube addons enable ingress >/dev/null
     ;;
   docker)
     context=$(kubectl config current-context)
     if [[ $context != docker-desktop* ]]; then
       warn "Kubectl context is '$context'. Switch to docker-desktop manually."
+    fi
+    if ! kubectl get ns ingress-nginx >/dev/null 2>&1; then
+      info "Instalando ingress-nginx (docker-desktop)"
+      kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/cloud/deploy.yaml
+      kubectl wait --namespace ingress-nginx \
+        --for=condition=ready pod \
+        --selector=app.kubernetes.io/component=controller \
+        --timeout=120s
     fi
     ;;
   existing)
