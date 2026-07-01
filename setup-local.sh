@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ROOT=$(cd "$(dirname "$0")" && pwd)
-BASE_DIR=${BASE_DIR:-$(dirname "$REPO_ROOT")}
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="${SCRIPT_DIR}"
+BASE_DIR=${BASE_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}
 REPOSITORIES=(spot-render spot-render-infra-aws spot-render-api spot-render-portal spot-render-cli spot-render-argo spot-render-observability spot-render-config)
 GIT_REMOTE=${GIT_REMOTE:-https://github.com/raafa001}
 CLUSTER_MODE=${CLUSTER_MODE:-auto}
