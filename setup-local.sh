@@ -134,6 +134,87 @@ mkdir -p \
   "$HOST_STORAGE_ROOT"/data
 chmod -R 0777 "$HOST_STORAGE_ROOT"
 
+# ─── Subir serviços de infraestrutura local (PostgreSQL + Redis + LocalStack) ──
+info "Subindo serviços de infraestrutura local (PostgreSQL, Redis, LocalStack)..."
+if ! command -v docker-compose >/dev/null 2>&1 && ! command -v docker >/dev/null 2>&1; then
+  warn "Docker não encontrado; pulando serviços de infraestrutura local"
+else
+  # Criar diretórios para volumes do Docker Compose
+  mkdir -p "$REPO_ROOT/data/postgres" "$REPO_ROOT/data/redis" "$REPO_ROOT/data/localstack" "$REPO_ROOT/data/pgadmin"
+  chmod -R 0777 "$REPO_ROOT/data"
+
+  # Subir serviços em background
+  if docker compose -f "$REPO_ROOT/docker-compose.local.yml" up -d 2>/dev/null; then
+    info "Serviços de infraestrutura iniciados"
+
+    # Aguardar PostgreSQL ficar pronto
+    info "Aguardando PostgreSQL..."
+    sleep 5
+    for i in {1..30}; do
+      if docker exec spot-render-postgres pg_isready -U render_admin -d renderqueue >/dev/null 2>&1; then
+        info "PostgreSQL está pronto!"
+        break
+      fi
+      if [[ $i -eq 30 ]]; then
+        warn "PostgreSQL não ficou pronto a tempo"
+      fi
+      sleep 2
+    done
+
+    # Aguardar Redis ficar pronto
+    info "Aguardando Redis..."
+    for i in {1..15}; do
+      if docker exec spot-render-redis redis-cli -a localdev123! ping >/dev/null 2>&1; then
+        info "Redis está pronto!"
+        break
+      fi
+      if [[ $i -eq 15 ]]; then
+        warn "Redis não ficou pronto a tempo"
+      fi
+      sleep 2
+    done
+
+    # Aguardar LocalStack ficar pronto
+    info "Aguardando LocalStack..."
+    for i in {1..30}; do
+      if curl -sf http://localhost:4566/_localstack/health >/dev/null 2>&1; then
+        info "LocalStack está pronto!"
+        break
+      fi
+      if [[ $i -eq 30 ]]; then
+        warn "LocalStack não ficou pronto a tempo"
+      fi
+      sleep 2
+    done
+
+    echo ""
+    info "┌─────────────────────────────────────────────────────────────┐"
+    info "│           SERVIÇOS DE INFRAESTRUTURA LOCAIS               │"
+    info "├─────────────────────────────────────────────────────────────┤"
+    info "│  PostgreSQL 15:  localhost:5432                          │"
+    info "│    - Usuário:  render_admin                             │"
+    info "│    - Senha:    localdev123!                            │"
+    info "│    - Banco:    renderqueue                              │"
+    info "│                                                             │"
+    info "│  Redis 7:      localhost:6379                            │"
+    info "│    - Senha:    localdev123!                            │"
+    info "│                                                             │"
+    info "│  LocalStack:   localhost:4566                            │"
+    info "│    - SQS:      spot-render-jobs, spot-render-jobs-dlq   │"
+    info "│    - S3:       spot-render-assets, spot-render-output   │"
+    info "│                                                             │"
+    info "│  PGAdmin:      localhost:5050                            │"
+    info "│    - Email:    admin@spot-render.local                  │"
+    info "│    - Senha:    admin123!                               │"
+    info "│                                                             │"
+    info "│  Redis Commander: localhost:8081                          │"
+    info "└─────────────────────────────────────────────────────────────┘"
+    echo ""
+  else
+    warn "Falha ao subir docker-compose.local.yml"
+  fi
+fi
+
 info "Reconciliando PV/PVC spot-render-storage"
 kubectl delete pvc spot-render-storage -n spot-render --ignore-not-found >/dev/null 2>&1 || true
 kubectl delete pvc spot-render-storage -n rendering --ignore-not-found >/dev/null 2>&1 || true
@@ -193,14 +274,34 @@ fi
 
 cat <<MSG
 [√] Ambiente local pronto.
+
+SERVIÇOS KUBERNETES:
 - API: http://spot-render.local (via ingress)
 - Portal: http://spot-render.local
 - SonarQube local: kubectl port-forward -n monitoring svc/spot-sonarqube-sonarqube 9000:9000
 - Grafana: kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80
 
+SERVIÇOS DE INFRAESTRUTURA (Docker):
+- PostgreSQL:  localhost:5432 (render_admin / localdev123!)
+- Redis:      localhost:6379  (senha: localdev123!)
+- LocalStack: localhost:4566 (SQS + S3 mock)
+- PGAdmin:    localhost:5050  (admin@spot-render.local / admin123!)
+- Redis Commander: localhost:8081
+
+VARIÁVEIS DE AMBIENTE para API:
+  DATABASE_URL=postgresql+psycopg2://render_admin:localdev123!@localhost:5432/renderqueue
+  REDIS_HOST=localhost
+  REDIS_PORT=6379
+  REDIS_PASSWORD=localdev123!
+  SQS_ENABLED=true
+  SQS_ENDPOINT_URL=http://localhost:4566
+  AWS_ACCESS_KEY_ID=test
+  AWS_SECRET_ACCESS_KEY=test
+  AWS_DEFAULT_REGION=us-east-1
+
 Para processar arquivos:
 1. Faça upload via portal ou CLI com STORAGE_MODE=local
-2. Liste os arquivos em $HOST_STORAGE_ROOT/shared e rode:
+2. Liste os arquivos em \$HOST_STORAGE_ROOT/shared e rode:
    make submit-local KEY="input/<proj>/<var>/<timestamp>/<arquivo>" PROJECT=<proj> VARIATION=<var> ARTIST=<nome>
 
 Quando terminar, execute ./teardown-local.sh (ou ./scripts/cleanup.sh) para remover os recursos e limpar o storage local.

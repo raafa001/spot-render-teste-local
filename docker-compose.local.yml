@@ -1,0 +1,204 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Spot Render - Local Development Stack
+# PostgreSQL + Redis + LocalStack (SQS mock)
+#
+# Uso:
+#   docker-compose -f docker-compose.local.yml up -d
+#   docker-compose -f docker-compose.local.yml logs -f
+#   docker-compose -f docker-compose.local.yml down
+# ──────────────────────────────────────────────────────────────────────────────
+
+version: "3.9"
+
+services:
+  # ─── PostgreSQL 15 ─────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    container_name: spot-render-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: render_admin
+      POSTGRES_PASSWORD: localdev123!
+      POSTGRES_DB: renderqueue
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-postgres.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U render_admin -d renderqueue"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+    networks:
+      - spot-render-net
+
+  # ─── Redis 7 Cluster ───────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: spot-render-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --requirepass localdev123!
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --timeout 300
+      --tcp-keepalive 300
+      --loglevel notice
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "localdev123!", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          cpus: "0.1"
+          memory: 128M
+    networks:
+      - spot-render-net
+
+  # ─── LocalStack (SQS Mock) ────────────────────────────────────────────────
+  localstack:
+    image: localstack/localstack:3.0
+    container_name: spot-render-localstack
+    restart: unless-stopped
+    environment:
+      # Services to enable
+      SERVICES: sqs,s3,secretsmanager
+      # LocalStack configuration
+      DEBUG: "1"
+      LAMBDA_EXECUTOR: docker
+      LOCALSTACK_HOST_DNS_ADDRESS: host.docker.internal
+      # SQS Configuration
+      SQS_START_DELAY: "0"
+      SQS_MAX_MESSAGE_SIZE: 262144
+      # persistence - useful for development
+      PERSISTENCE: "1"
+      # Docker network
+      EAGER_SERVICE_LOADING: "1"
+    ports:
+      - "4566:4566"           # LocalStack main port
+      - "45103:45103"         # LocalStack audit port
+    volumes:
+      - localstack_data:/var/lib/localstack
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./scripts/init-localstack.sh:/etc/localstack/init/ready.d/init.sh:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+    networks:
+      - spot-render-net
+
+  # ─── PGAdmin (Opcional - Development) ─────────────────────────────────────
+  pgadmin:
+    image: dpage/pgadmin4:8
+    container_name: spot-render-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@spot-render.local
+      PGADMIN_DEFAULT_PASSWORD: admin123!
+      PGADMIN_SERVER_MODE: "False"
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+    networks:
+      - spot-render-net
+
+  # ─── Redis Commander (Opcional - Development) ──────────────────────────────
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: spot-render-redis-commander
+    restart: unless-stopped
+    environment:
+      REDIS_HOSTS: local:host.docker.internal:6379:0:localdev123!
+    ports:
+      - "8081:8081"
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+    networks:
+      - spot-render-net
+
+# ─── Volumes ───────────────────────────────────────────────────────────────────
+
+volumes:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/postgres
+
+  redis_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/redis
+
+  localstack_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/localstack
+
+  pgadmin_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/pgadmin
+
+# ─── Networks ─────────────────────────────────────────────────────────────────
+
+networks:
+  spot-render-net:
+    driver: bridge
+    name: spot-render-network

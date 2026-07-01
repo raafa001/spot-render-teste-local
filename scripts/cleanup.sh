@@ -50,6 +50,21 @@ for ns in spot-render rendering monitoring; do
   kubectl delete namespace "$ns" --ignore-not-found >/dev/null 2>&1 || true
 done
 
+# ─── Derrubar serviços Docker de infraestrutura local ───────────────────────
+info "Derrubando serviços de infraestrutura local (PostgreSQL, Redis, LocalStack)..."
+REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
+if docker compose -f "$REPO_ROOT/docker-compose.local.yml" down --volumes --remove-orphans >/dev/null 2>&1; then
+  info "Serviços Docker parados e volumes removidos"
+else
+  warn "Falha ao derrubar serviços Docker (ou docker compose não disponível)"
+fi
+
+# Limpar diretório de dados local
+if [[ -d "$REPO_ROOT/data" ]]; then
+  info "Limpando dados locais em $REPO_ROOT/data"
+  rm -rf "$REPO_ROOT/data"
+fi
+
 if [[ -d "$HOST_STORAGE_ROOT" ]]; then
   info "Cleaning host storage at $HOST_STORAGE_ROOT"
   rm -rf "$HOST_STORAGE_ROOT"

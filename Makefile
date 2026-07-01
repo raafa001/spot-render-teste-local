@@ -1,7 +1,7 @@
 CLUSTER_NAME ?= spot-render-local
 KIND_NODE_IMAGE ?= kindest/node:v1.30.0
 
-.PHONY: kind-up kind-down bootstrap build-api build-portal build-argo load-images deploy-storage deploy-api deploy-portal deploy-argo deploy-observability submit-local cleanup
+.PHONY: kind-up kind-down bootstrap build-api build-portal build-argo load-images deploy-storage deploy-api deploy-portal deploy-argo deploy-observability submit-local cleanup infra-up infra-down infra-status
 
 KUSTOMIZE ?= kustomize
 
@@ -62,3 +62,42 @@ submit-local:
 
 cleanup:
 	./scripts/cleanup.sh
+
+# ─── Infraestrutura Local (Docker) ───────────────────────────────────────────
+
+infra-up:
+	@mkdir -p data/postgres data/redis data/localstack data/pgadmin
+	docker compose -f docker-compose.local.yml up -d
+	@echo "Aguardando serviços ficarem prontos..."
+	@sleep 10
+	@echo ""
+	@echo "┌─────────────────────────────────────────────────────────────┐"
+	@echo "│           SERVIÇOS DE INFRAESTRUTURA LOCAIS               │"
+	@echo "├─────────────────────────────────────────────────────────────┤"
+	@echo "│  PostgreSQL 15:  localhost:5432                          │"
+	@echo "│    - Usuário:  render_admin                             │"
+	@echo "│    - Senha:    localdev123!                            │"
+	@echo "│    - Banco:    renderqueue                              │"
+	@echo "│                                                             │"
+	@echo "│  Redis 7:      localhost:6379                            │"
+	@echo "│    - Senha:    localdev123!                            │"
+	@echo "│                                                             │"
+	@echo "│  LocalStack:   localhost:4566                            │"
+	@echo "│    - SQS:      spot-render-jobs, spot-render-jobs-dlq │"
+	@echo "│    - S3:       spot-render-assets, spot-render-output  │"
+	@echo "│                                                             │"
+	@echo "│  PGAdmin:      localhost:5050                            │"
+	@echo "│    - Email:    admin@spot-render.local                  │"
+	@echo "│    - Senha:    admin123!                               │"
+	@echo "└─────────────────────────────────────────────────────────────┘"
+	@echo ""
+	@echo "Variáveis para API:"
+	@echo "  DATABASE_URL=postgresql+psycopg2://render_admin:localdev123!@localhost:5432/renderqueue"
+	@echo "  REDIS_HOST=localhost REDIS_PORT=6379 REDIS_PASSWORD=localdev123!"
+
+infra-down:
+	docker compose -f docker-compose.local.yml down --volumes --remove-orphans
+	rm -rf data
+
+infra-status:
+	@echo "=== STATUS DOS SERVIÇOS ===" && docker compose -f docker-compose.local.yml ps
