@@ -37,6 +37,12 @@ O script:
 - `INSTALL_ARGO_ROLLOUTS=true|false`: força (ou evita) a instalação automática do Argo Rollouts. Se não definido, o script pergunta interativamente quando o CRD não estiver presente.
 - `KUSTOMIZE_LOAD_RESTRICTOR=LoadRestrictionsNone`: já aplicado automaticamente nos `make deploy-api`/`deploy-argo`, permitindo que os overlays façam referência aos manifests hospedados nos outros repositórios `spot-render-*`.
 
+> **PT-BR:** Após aplicar os manifests, o `setup-local.sh` executa `kubectl set image deployment/spot-render-worker worker=$WORKER_IMAGE -n spot-render`, garantindo que o worker local use a imagem recém-buildada (sem tentar baixar `ghcr.io/company/spot-render-worker:latest`). Para testar outra versão, exporte `WORKER_IMAGE=repo/tag` antes de executar o script.  
+> **EN:** Once manifests are applied, `setup-local.sh` runs `kubectl set image deployment/spot-render-worker worker=$WORKER_IMAGE -n spot-render`, ensuring the local worker always uses the freshly built image instead of pulling `ghcr.io/company/spot-render-worker:latest`. To test a different version, export `WORKER_IMAGE=repo/tag` before running the script.
+
+> **PT-BR:** O overlay `api-local` também liga o fluxo completo da fila (`SQS_ENABLED=true`, `SQS_QUEUE_URL=http://sqs.us-east-1.localhost.localstack.cloud/...`). A API publica métricas Prometheus `render_sqs_messages_visible/inflight` para a fila principal e DLQ sempre que mensagens entram ou saem.  
+> **EN:** The `api-local` overlay enables the full queue path (`SQS_ENABLED=true` plus the LocalStack URLs). The API now exposes Prometheus metrics `render_sqs_messages_visible/inflight` for both the primary queue and the DLQ whenever messages flow through SQS.
+
 > **WSL/Docker Desktop:** defina `HOST_STORAGE_ROOT` apontando para um diretório disponível no Windows, por exemplo `HOST_STORAGE_ROOT=/run/desktop/mnt/host/c/tmp/spot-render-storage ./setup-local.sh`. Esse caminho será montado nos pods e preservará os dados (render lists, frames, Sonar, Grafana, Prometheus).
 
 ## Passos manuais (opcional)

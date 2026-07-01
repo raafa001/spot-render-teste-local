@@ -25,6 +25,12 @@ Para clusters Docker Desktop no WSL2, execute com `HOST_STORAGE_ROOT=/run/deskto
 - `API_IMAGE`, `PORTAL_IMAGE`, `WORKER_IMAGE` – sobrescrevem as imagens tagueadas com `sha-<git-short>` geradas automaticamente pelo `setup-local.sh`.  
 - Os targets `make deploy-api`/`deploy-argo` renderizam os overlays via `kustomize build --load-restrictor LoadRestrictionsNone <path> | kubectl apply -f -`, permitindo o uso de manifestos armazenados nos demais repositórios `spot-render-*`. Durante o bootstrap, o script detecta namespaces `argo-*` já existentes (ex.: `argo-rollouts`, `argo-cd`) e pergunta se você deseja instalar o Argo Rollouts (variáveis `ARGO_ROLLOUTS_VERSION` / `INSTALL_ARGO_ROLLOUTS`). Se preferir não instalar em ambientes locais, os rollouts são simplesmente ignorados.
 
+> **PT-BR:** Logo após aplicar os manifests, o `setup-local.sh` roda `kubectl set image deployment/spot-render-worker worker=$WORKER_IMAGE -n spot-render`, evitando `ImagePullBackOff` do GHCR e garantindo que o cluster use a imagem construída localmente. Para usar outra tag (ex.: testes de feature branches), exporte `WORKER_IMAGE=repo/tag` antes de executar o script.  
+> **EN:** Right after applying the manifests, `setup-local.sh` runs `kubectl set image deployment/spot-render-worker worker=$WORKER_IMAGE -n spot-render`, preventing GHCR `ImagePullBackOff` errors and forcing the cluster to use the locally built image. To try a different tag (e.g., feature branches), export `WORKER_IMAGE=repo/tag` before running the script.
+
+> **PT-BR:** O overlay `api-local` habilita o caminho completo de SQS (`SQS_ENABLED=true`, URLs do LocalStack) e a API passa a publicar as métricas `render_sqs_messages_visible`/`render_sqs_messages_inflight` para monitorar fila principal e DLQ.  
+> **EN:** The `api-local` overlay enables the full SQS path (`SQS_ENABLED=true` plus LocalStack URLs) and the API exports `render_sqs_messages_visible`/`render_sqs_messages_inflight` so you can monitor both the primary queue and the DLQ.
+
 ## Passos manuais
 1. `make kind-up`
 2. `make bootstrap`

@@ -23,6 +23,12 @@ spec:
               mountPath: /storage
       containers:
         - name: spot-render-backend
+          image: spot-render-backend:dev
+          envFrom:
+            - configMapRef:
+                name: spot-render-backend-config
+            - secretRef:
+                name: spot-render-backend-secrets
           env:
             - name: STORAGE_MODE
               value: local
@@ -30,6 +36,11 @@ spec:
               value: /storage
             - name: DATABASE_URL
               value: sqlite:////storage/data/jobs.db
+            - name: SQS_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  name: spot-render-backend-config
+                  key: SQS_ENABLED
           volumeMounts:
             - name: render-storage
               mountPath: /storage

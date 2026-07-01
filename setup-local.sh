@@ -52,6 +52,22 @@ EOF
   rm -f "$patch_file"
 }
 
+patch_deployment_image() {
+  local deployment=$1
+  local namespace=$2
+  local container=$3
+  local image=$4
+  if ! kubectl get deployment "$deployment" -n "$namespace" >/dev/null 2>&1; then
+    warn "Deployment $deployment não encontrado; pulei atualização"
+    return
+  fi
+  if ! kubectl -n "$namespace" set image "deployment/$deployment" "$container=$image" >/dev/null; then
+    warn "Falha ao atualizar imagem do deployment $deployment"
+  else
+    kubectl -n "$namespace" rollout status "deployment/$deployment" --timeout=120s || true
+  fi
+}
+
 require_cmd git
 require_cmd kubectl
 require_cmd helm
@@ -279,6 +295,8 @@ if kubectl get crd rollouts.argoproj.io >/dev/null 2>&1; then
 else
   warn "CRD rollouts.argoproj.io não disponível; pulando atualização dos rollouts"
 fi
+
+patch_deployment_image spot-render-worker spot-render worker "$WORKER_IMAGE"
 
 if kubectl get workflowtemplate render-workflow-local -n rendering >/dev/null 2>&1; then
   info "Updating render-workflow-local worker image to $WORKER_IMAGE"
