@@ -1,9 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+CANONICAL_ROOT="/home/rafacardoso/git/spot-render-teste-local"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="${SCRIPT_DIR}"
-BASE_DIR=${BASE_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}
+if [[ -d "$CANONICAL_ROOT" && "$SCRIPT_DIR" != "$CANONICAL_ROOT" ]]; then
+  echo "[setup-local] Aviso: usando cópia alternativa em $SCRIPT_DIR. Redirecionando para $CANONICAL_ROOT" >&2
+  exec "$CANONICAL_ROOT/setup-local.sh" "$@"
+fi
+
+if [[ ! -d "$CANONICAL_ROOT" ]]; then
+  CANONICAL_ROOT="$SCRIPT_DIR"
+fi
+
+REPO_ROOT="$CANONICAL_ROOT"
+BASE_DIR=${BASE_DIR:-$(cd "$REPO_ROOT/.." && pwd)}
 REPOSITORIES=(spot-render spot-render-infra-aws spot-render-api spot-render-portal spot-render-cli spot-render-argo spot-render-observability spot-render-config)
 GIT_REMOTE=${GIT_REMOTE:-https://github.com/raafa001}
 CLUSTER_MODE=${CLUSTER_MODE:-auto}
