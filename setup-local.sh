@@ -77,6 +77,15 @@ if [[ $CLUSTER_MODE == auto ]]; then
   fi
 fi
 
+if [[ $CLUSTER_MODE == kind ]] && ! command -v kind >/dev/null 2>&1; then
+  if kubectl config get-contexts 2>/dev/null | grep -q "docker-desktop"; then
+    info "kind não encontrado. Alternando para modo 'docker'."
+    CLUSTER_MODE=docker
+  else
+    require_cmd kind
+  fi
+fi
+
 info "Cluster mode: $CLUSTER_MODE"
 info "Portal build usará NEXT_PUBLIC_API_URL=$PORTAL_API_URL"
 
@@ -151,8 +160,9 @@ if ! command -v docker-compose >/dev/null 2>&1 && ! command -v docker >/dev/null
   warn "Docker não encontrado; pulando serviços de infraestrutura local"
 else
   # Criar diretórios para volumes do Docker Compose
+  rm -rf "$REPO_ROOT/data"
   mkdir -p "$REPO_ROOT/data/postgres" "$REPO_ROOT/data/redis" "$REPO_ROOT/data/localstack" "$REPO_ROOT/data/pgadmin"
-  chmod -R 0777 "$REPO_ROOT/data"
+  chmod -R 0777 "$REPO_ROOT/data" || warn "Não foi possível ajustar permissões em $REPO_ROOT/data"
 
   # Subir serviços em background
   if docker compose -f "$REPO_ROOT/docker-compose.local.yml" up -d 2>/dev/null; then
