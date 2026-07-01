@@ -4,7 +4,7 @@
 # Cria as filas SQS e buckets S3 necessários para o Spot Render
 # ──────────────────────────────────────────────────────────────────────────────
 
-set -e
+set -euo pipefail
 
 echo "[LocalStack Init] Aguardando serviços ficarem prontos..."
 sleep 5
@@ -21,15 +21,18 @@ awslocal sqs create-queue \
     --queue-name spot-render-jobs-dlq \
     --attributes '{"MessageRetentionPeriod": "1209600", "ReceiveMessageWaitTimeSeconds": "20"}'
 
+JOBS_QUEUE_URL=$(awslocal sqs get-queue-url --queue-name spot-render-jobs --query 'QueueUrl' --output text)
+DLQ_QUEUE_URL=$(awslocal sqs get-queue-url --queue-name spot-render-jobs-dlq --query 'QueueUrl' --output text)
+
 # Configurar redrive policy na fila principal
 DLQ_ARN=$(awslocal sqs get-queue-attributes \
-    --queue-url spot-render-jobs-dlq \
+    --queue-url "$DLQ_QUEUE_URL" \
     --attribute-names QueueArn \
     --query 'Attributes.QueueArn' \
     --output text)
 
 awslocal sqs set-queue-attributes \
-    --queue-url spot-render-jobs \
+    --queue-url "$JOBS_QUEUE_URL" \
     --attributes '{"RedrivePolicy": "{\"deadLetterTargetArn\": \"'"$DLQ_ARN"'\", \"maxReceiveCount\": 3}"}'
 
 echo "[LocalStack Init] Filas SQS criadas com sucesso!"
@@ -56,9 +59,12 @@ awslocal secretsmanager create-secret \
     --secret-string '{"host":"redis","port":6379,"password":"localdev123!"}' \
     --region us-east-1 || true
 
+HOST_JOB_URL=${JOBS_QUEUE_URL/localhost/host.docker.internal}
+HOST_DLQ_URL=${DLQ_QUEUE_URL/localhost/host.docker.internal}
+
 awslocal secretsmanager create-secret \
     --name spot-render/sqs/credentials \
-    --secret-string '{"queue_url":"http://localstack:4566/000000000000/spot-render-jobs","dlq_url":"http://localstack:4566/000000000000/spot-render-jobs-dlq"}' \
+    --secret-string '{"queue_url":"'"${HOST_JOB_URL}"'","dlq_url":"'"${HOST_DLQ_URL}"'"}' \
     --region us-east-1 || true
 
 echo "[LocalStack Init] Secrets Manager configurado!"
