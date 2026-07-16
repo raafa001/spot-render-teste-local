@@ -1,0 +1,49 @@
+{
+  "scan_time": "2026-07-16T18:44:27.034518",
+  "repo": "/home/rafacardoso/git/spot-render-teste-local",
+  "summary": {
+    "total_vulnerabilities": 0,
+    "by_severity": {
+      "critical": 0,
+      "high": 0,
+      "medium": 0,
+      "low": 0
+    }
+  },
+  "scans": [
+    {
+      "tool": "gitleaks",
+      "success": false,
+      "vulnerabilities": [],
+      "errors": [
+        "Error: [Errno 2] No such file or directory: 'gitleaks'"
+      ]
+    },
+    {
+      "tool": "dependency-scanner",
+      "success": true,
+      "vulnerabilities": [],
+      "errors": []
+    },
+    {
+      "tool": "checkov",
+      "success": true,
+      "vulnerabilities": [],
+      "errors": []
+    },
+    {
+      "tool": "semgrep",
+      "success": false,
+      "vulnerabilities": [],
+      "errors": [
+        "SAST error: [Errno 2] No such file or directory: 'semgrep'"
+      ]
+    },
+    {
+      "tool": "trivy",
+      "success": true,
+      "vulnerabilities": [],
+      "errors": []
+    }
+  ]
+}

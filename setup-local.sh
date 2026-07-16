@@ -311,6 +311,14 @@ EOF
   rm -f "$patch_file"
 fi
 
+# ─── Setup AIOps Agents ────────────────────────────────────────────────────────
+info "Configurando AIOps Agents..."
+if [[ -x "$REPO_ROOT/scripts/setup-aiops.sh" ]]; then
+    "$REPO_ROOT/scripts/setup-aiops.sh"
+else
+    warn "Script setup-aiops.sh não encontrado ou não executável"
+fi
+
 cat <<MSG
 [√] Ambiente local pronto.
 

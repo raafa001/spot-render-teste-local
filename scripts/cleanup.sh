@@ -62,12 +62,59 @@ fi
 # Limpar diretório de dados local
 if [[ -d "$REPO_ROOT/data" ]]; then
   info "Limpando dados locais em $REPO_ROOT/data"
-  rm -rf "$REPO_ROOT/data"
+  # Usar sudo se necessário (arquivos criados pelo Docker podem ter permissões de root)
+  rm -rf "$REPO_ROOT/data" 2>/dev/null || \
+    sudo rm -rf "$REPO_ROOT/data" 2>/dev/null || \
+    warn "  Não foi possível limpar alguns dados (permissão negada)"
 fi
 
 if [[ -d "$HOST_STORAGE_ROOT" ]]; then
   info "Cleaning host storage at $HOST_STORAGE_ROOT"
-  rm -rf "$HOST_STORAGE_ROOT"
+  rm -rf "$HOST_STORAGE_ROOT" 2>/dev/null || \
+    sudo rm -rf "$HOST_STORAGE_ROOT" 2>/dev/null || \
+    warn "  Não foi possível limpar storage (permissão negada)"
 fi
 
-info "Cleanup complete."
+# ─── Limpar AIOps Agents ──────────────────────────────────────────────────────
+cleanup_aiops() {
+    info "Limpando AIOps Agents..."
+
+    # Parar Ollama (mantém rodando por padrão para não interromper outros processos)
+    if curl -s http://localhost:11434/api/version > /dev/null 2>&1; then
+        info "  ℹ️ Ollama está rodando (mantido para outros usos)"
+    fi
+
+    # Limpar relatórios de segurança antigos (manter últimos 30 dias)
+    if [[ -d "$REPO_ROOT/security-reports" ]]; then
+        local OLD_REPORTS=$(find "$REPO_ROOT/security-reports" -name "*.json" -mtime +30 2>/dev/null || true)
+        if [[ -n "$OLD_REPORTS" ]]; then
+            echo "$OLD_REPORTS" | xargs rm -f 2>/dev/null || true
+            info "  ✓ Relatórios de segurança antigos removidos"
+        fi
+    fi
+
+    # Limpar artefatos antigos
+    if [[ -d "$REPO_ROOT/artifacts" ]]; then
+        local OLD_ARTIFACTS=$(find "$REPO_ROOT/artifacts" -name "*.json" -mtime +7 2>/dev/null || true)
+        if [[ -n "$OLD_ARTIFACTS" ]]; then
+            echo "$OLD_ARTIFACTS" | xargs rm -f 2>/dev/null || true
+            info "  ✓ Artefatos antigos removidos"
+        fi
+    fi
+
+    info "  ✓ AIOps Agents limpo"
+}
+
+cleanup_aiops
+
+echo ""
+info "=========================================="
+info "  Cleanup Concluído"
+info "=========================================="
+echo ""
+info "Se tiver erros de permissão nos diretórios data/:"
+info "  sudo rm -rf $REPO_ROOT/data"
+info ""
+info "Para iniciar novamente:"
+info "  bash setup-local.sh"
+info "==========================================="

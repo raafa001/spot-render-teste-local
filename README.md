@@ -1,128 +1,229 @@
 # spot-render-teste-local
 
-> Harness para executar toda a plataforma Spot Render (API, portal, Argo Workflows, observabilidade e SonarQube local) em um cluster Kubernetes local (Kind, Minikube ou Docker Desktop) com persistência de dados.
+> Ambiente de teste local para a plataforma Spot-Render com GPU rendering usando spot instances AWS.
 
-## Requisitos
-- Git, Docker, kubectl, helm
-- Kind (para modo padrão) ou Minikube / Docker Desktop
-- Acesso aos repositórios `spot-render-*`
-- Kustomize CLI (>= v5) – usado para renderizar os overlays locais (caso não esteja instalado, `setup-local.sh` e `scripts/bootstrap.sh` executam automaticamente `scripts/install-kustomize.sh` e instalam em `~/.local/bin`).
+## 🎯 Visão Geral
 
-## Uso rápido (script automatizado)
+Este repositório contém a configuração para um ambiente de teste local completo, incluindo:
+
+- **Kubernetes (Kind)** - Cluster local para desenvolvimento
+- **API Backend** - FastAPI Python para gerenciamento de jobs
+- **Portal Web** - Next.js React frontend
+- **Argo Workflows** - Orquestrador de workflows de renderização
+- **Observability** - Prometheus, Grafana, Loki
+- **AIOps Agents** - Agentes autônomos de operações (24/7)
+
+---
+
+## 🚀 Quick Start
+
+### 1. Setup Completo (tudo de uma vez)
+
 ```bash
-cd spot-render-teste-local
-./setup-local.sh
+cd ~/git/spot-render-teste-local
+
+# Sobe o cluster, containers, e AIOps Agents
+bash setup-local.sh
 ```
-O script:
-1. Garante que todos os repositórios `spot-render-*` estejam clonados e atualizados (padrão `..`); utilize `BASE_DIR=/c/repos ./setup-local.sh` para personalizar.  
-2. Detecta o cluster em uso (Kind, Minikube, Docker Desktop) e cria/inicializa se necessário.  
-3. Provisiona namespaces, storage compartilhado e instala Argo Workflows/Events, Prometheus + Grafana e SonarQube **com volumes persistentes**.  
-4. Constrói as imagens (`spot-render-api`, `spot-render-portal`, `spot-render-worker`) e as disponibiliza ao cluster.  
-5. Aplica os manifests (API canário, portal, workflows locais e observabilidade).  
-6. Exibe instruções finais (port-forward, envio de jobs etc.).
 
-### Componentes opcionais
-- Durante `setup-local.sh`, o script pergunta se você deseja instalar **Prometheus + Grafana** (kube-prometheus-stack) e/ou **SonarQube**.  
-- Se já existir uma instalação no cluster, o script informa e pergunta se deseja reaproveitar ou criar uma nova instância.  
-- Para rodar sem interação, defina as variáveis: `INSTALL_PROM_STACK=true|false`, `INSTALL_SONAR=true|false`, `SONAR_MONITORING_PASSCODE=<passcode>`.
+### 2. Verificar Status
 
-### Variáveis úteis
-- `HOST_STORAGE_ROOT`: caminho local compartilhado com o cluster (padrão `/tmp/spot-render-storage`).  
-- `INSTALL_PROM_STACK` / `INSTALL_SONAR`: definem se Prometheus/Grafana e SonarQube devem (ou não) ser instalados sem prompt.  
-- `SONAR_MONITORING_PASSCODE`: passcode necessário para o chart do SonarQube quando instalado.  
-- `BASE_DIR`: diretório onde os repositórios `spot-render-*` serão clonados/atualizados.  
-- `API_IMAGE`, `PORTAL_IMAGE`, `WORKER_IMAGE`: substituem as imagens geradas automaticamente pelo `setup-local.sh` (por padrão cada imagem recebe a tag `sha-<git-short>`).  
-- Os targets `make deploy-api` e `make deploy-argo` renderizam os overlays com `kustomize build --load-restrictor LoadRestrictionsNone ... | kubectl apply -f -`, portanto o binário `kustomize` precisa estar instalado (override com `KUSTOMIZE=/caminho/para/kustomize`).  
-- `ARGO_ROLLOUTS_VERSION`: versão utilizada para instalar automaticamente os CRDs/Controller do Argo Rollouts (padrão `v1.6.6`). O bootstrap detecta namespaces `argo-*` existentes (ex.: `argo-rollouts`, `argo-cd`) e reutiliza-os quando já presentes.
-- `INSTALL_ARGO_ROLLOUTS=true|false`: força (ou evita) a instalação automática do Argo Rollouts. Se não definido, o script pergunta interativamente quando o CRD não estiver presente.
-- `KUSTOMIZE_LOAD_RESTRICTOR=LoadRestrictionsNone`: já aplicado automaticamente nos `make deploy-api`/`deploy-argo`, permitindo que os overlays façam referência aos manifests hospedados nos outros repositórios `spot-render-*`.
-
-> **PT-BR:** Após aplicar os manifests, o `setup-local.sh` executa `kubectl set image deployment/spot-render-worker worker=$WORKER_IMAGE -n spot-render`, garantindo que o worker local use a imagem recém-buildada (sem tentar baixar `ghcr.io/company/spot-render-worker:latest`). Para testar outra versão, exporte `WORKER_IMAGE=repo/tag` antes de executar o script.  
-> **EN:** Once manifests are applied, `setup-local.sh` runs `kubectl set image deployment/spot-render-worker worker=$WORKER_IMAGE -n spot-render`, ensuring the local worker always uses the freshly built image instead of pulling `ghcr.io/company/spot-render-worker:latest`. To test a different version, export `WORKER_IMAGE=repo/tag` before running the script.
-
-> **PT-BR:** O overlay `api-local` também liga o fluxo completo da fila (`SQS_ENABLED=true`, `SQS_QUEUE_URL=http://sqs.us-east-1.localhost.localstack.cloud/...`). A API publica métricas Prometheus `render_sqs_messages_visible/inflight` para a fila principal e DLQ sempre que mensagens entram ou saem.  
-> **EN:** The `api-local` overlay enables the full queue path (`SQS_ENABLED=true` plus the LocalStack URLs). The API now exposes Prometheus metrics `render_sqs_messages_visible/inflight` for both the primary queue and the DLQ whenever messages flow through SQS.
-
-> **WSL/Docker Desktop:** defina `HOST_STORAGE_ROOT` apontando para um diretório disponível no Windows, por exemplo `HOST_STORAGE_ROOT=/run/desktop/mnt/host/c/tmp/spot-render-storage ./setup-local.sh`. Esse caminho será montado nos pods e preservará os dados (render lists, frames, Sonar, Grafana, Prometheus).
-
-## Passos manuais (opcional)
-Caso deseje executar manualmente:
 ```bash
-make kind-up
-make bootstrap
-make build-api build-portal build-argo
-make load-images   # apenas para Kind/Minikube
-make deploy-api deploy-portal deploy-argo deploy-observability
+# Ver pods Kubernetes
+kubectl get pods -n spot-render
+
+# Ver containers Docker
+docker ps
+
+# Ver AIOps Agents
+curl -s http://localhost:11434/api/version
 ```
 
-Para disparar um workflow local:
+### 3. Acessar Serviços
+
+| Serviço | URL | Credenciais |
+|---------|-----|-------------|
+| Portal | http://spot-render.local | - |
+| API | http://spot-render.local/api | - |
+| PGAdmin | http://localhost:5050 | admin@spot-render.local / admin123! |
+| Redis Commander | http://localhost:8081 | - |
+| Grafana | kubectl port-forward | - |
+
+---
+
+## 🤖 AIOps Agents
+
+Este ambiente inclui **AIOps Agents** que rodam autonomamente 24/7.
+
+### Agentes Disponíveis
+
+| Agente | O que faz |
+|--------|-----------|
+| **SecurityScanner** | Escaneia CVEs, secrets, IaC |
+| **Documenter** | Gera/atualiza README e docs |
+| **MonitorAgent** | Métricas e detecção de anomalias |
+| **RootCauseAnalyzer** | Análise de causa raiz (5 Whys) |
+| **IncidentResponder** | Playbooks de resposta |
+| **AlertGenerator** | Gera regras Prometheus |
+| **CapacityPlanner** | Forecasting de recursos |
+
+### Custo: **$0/mês** (Usa Ollama local)
+
+### Uso dos Agents
+
 ```bash
-make submit-local KEY="input/<projeto>/<variacao>/<timestamp>/<arquivo>" \
-  PROJECT=<projeto> VARIATION=<variacao> ARTIST=<artista>
+# Rodar um agente manualmente
+cd ~/git/spot-render
+source agents/venv/bin/activate
+export OLLAMA_BASE_URL=http://localhost:11434
+python -m agents.main --agent security-scanner --repo ~/git/spot-render-teste-local
+
+# Rodar em loop autônomo (a cada 5 min)
+cd ~/git/spot-render-teste-local
+bash scripts/run-autonomous.sh
 ```
-(obtenha o `KEY` inspecionando `HOST_STORAGE_ROOT/shared`).
 
-### URLs e acesso (Local)
-> **PT-BR:** Portal em `https://spot-render.local` (Ingress) utilizando `NEXT_PUBLIC_API_URL=https://api.spot-render.local`. Use o formulário para enviar arquivos/render lists e acompanhar o progresso. A API fica em `https://api.spot-render.local` e aceita `POST /uploads`, `GET /jobs`, `PATCH /jobs/{id}/progress`. Exemplo: `curl -k -X POST https://api.spot-render.local/uploads/ -F file=@scene.blend -F project=demo -F variation=v1 -F artist=alice`.  
-> **EN:** Portal lives at `https://spot-render.local` (Ingress) with `NEXT_PUBLIC_API_URL=https://api.spot-render.local`. Use the upload form to send files/render lists; call the API (`POST /uploads`, `GET /jobs`, `PATCH /jobs/{id}/progress`) for automation.
+### Validar que está funcionando
 
-**Hosts obrigatórios (local):**
-```
-127.0.0.1 spot-render.local
-127.0.0.1 api.spot-render.local
-```
-(Troque o IP se o cluster expuser o ingress por outro endereço.) O `setup-local.sh` já grava `spot-render-portal/.env.local` com `NEXT_PUBLIC_API_URL=http://api.spot-render.local` e o overlay `k8s/overlays/api-local` publica um Ingress apontando `api.spot-render.local` → `spot-render-backend-stable`. Assim, o navegador consegue consumir `http://api.spot-render.local/*` sem precisar de port-forward. Se preferir `localhost`, execute o script com `PORTAL_API_URL=http://localhost:8080` e faça port-forward para o serviço da API.
-
-O portal também possui um Ingress dedicado (`k8s/portal-ingress.yaml`) roteando `spot-render.local` → `spot-render-web-stable`. Com o ingress-nginx instalado automaticamente pelo `setup-local.sh`, basta acessar `http://spot-render.local` para abrir a UI.
-
-**Checklist pós-deploy (evita erros de DNS/ingress):**
 ```bash
-kubectl get pods -n spot-render -l app=spot-render-backend
-kubectl argo rollouts get rollout spot-render-backend -n spot-render
-kubectl get ingress -n spot-render
-curl -k http://api.spot-render.local/health/summary
-```
-Caso a API não responda, garanta que o ServiceAccount `spot-render-backend` esteja criado (já incluso nos manifests) e, se necessário, rode `kubectl argo rollouts retry spot-render-backend -n spot-render` após atualizar a imagem.
+# 1. Verificar Ollama
+curl -s http://localhost:11434/api/version
 
-### URLs e acesso (AWS/Produção)
-> **PT-BR:** Portal oficial: `https://portal.spot-render.aws.company.com` (UI leve com logo **SPOT-RENDER**). API: `https://api.spot-render.aws.company.com`. Ao publicar o portal, defina `NEXT_PUBLIC_API_URL=https://api.spot-render.aws.company.com`. Para automação, utilize tokens/SAML e chame `curl -H 'Authorization: Bearer <token>' https://api.spot-render.aws.company.com/jobs`.  
-> **EN:** Production portal: `https://portal.spot-render.aws.company.com` (same lightweight UX, SPOT-RENDER branding). API endpoint: `https://api.spot-render.aws.company.com`. Configure `NEXT_PUBLIC_API_URL` before building and call the API with the appropriate auth token.
+# 2. Ver relatórios gerados
+ls -la ~/git/spot-render-teste-local/security-reports/
 
-## Render lists
-- Coloque as listas privadas em `assets/renderlists/` (não versionadas).  
-- Faça upload via portal/CLI selecionando o campo **Render list** ou marcando “Nova render list padrão” (credenciais default `admin/admin`).
-
-## SonarQube, Argo, Grafana, Prometheus
-- O script instala os charts com `persistence.enabled=true` usando o caminho configurado em `HOST_STORAGE_ROOT`.  
-- Mesmo que os pods sejam recriados, os dados continuam no diretório host (Sonar issues, dashboards Grafana, séries Prometheus, histórico de Argo Server).  
-- Para AWS, utilize os arquivos em `spot-render-config/helm-values/` (gp3/EFS) para manter o mesmo comportamento.
-
-## Observabilidade
-- `kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80`  → Grafana (importar dashboard `spot-render-observability/grafana/dashboards/rendering.json`).  
-- `kubectl port-forward -n monitoring svc/spot-sonarqube-sonarqube 9000:9000` → SonarQube local.
-
-## Limpeza rápida
-- `./scripts/cleanup.sh` ou `./teardown-local.sh` (atalho na raiz) removem os releases Helm (Argo, Prometheus, Sonar), excluem os manifests aplicados (`k8s/overlays/*`, storage, namespaces) e apagam o diretório host configurado em `HOST_STORAGE_ROOT` (por padrão `/tmp/spot-render-storage`). Ideal para garantir que não fiquem resíduos de testes.
-- O script de limpeza valida a existência dos recursos antes de tentar removê-los, evitando erros quando nada foi instalado.
-
-## Spot Render Sync (AWS)
-- O portal disponibilizará downloads do **Spot Render Sync** (Windows `.msi`, macOS `.dmg`, Linux `.AppImage`) em `https://portal.spot-render.aws.company.com/downloads/spot-render-sync-<os>`.  
-- O agente monitora as pastas configuradas pelos artistas (por projeto) e envia automaticamente os arquivos para os buckets definidos no `PROJECT_ROUTE_CONFIG`, sem precisar abrir o portal.  
-- Interface leve/tray, com a logo **SPOT-RENDER**, pensada para ambientes AWS; em ambientes locais continue utilizando portal/API/CLI.
-
-## Estrutura
-```
-assets/renderlists/.gitkeep
-k8s/namespaces.yaml
-k8s/storage-hostpath.yaml.tpl
-k8s/overlays/api-local/
-k8s/overlays/argo-local/
-kind-config.yaml
-Makefile
-scripts/bootstrap.sh
-setup-local.sh
-teardown-local.sh
+# 3. Ver documentação gerada
+ls -la ~/git/spot-render-teste-local/docs/
 ```
 
-## TechDocs
-Documentação detalhada em `docs/index.md` + `mkdocs.yml`, consumida pelo Backstage.
+### 📖 Documentação Completa
+
+Consulte **[docs/AIOPS_AGENTS.md](docs/AIOPS_AGENTS.md)** para documentação técnica detalhada.
+
+---
+
+## 📁 Estrutura de Diretórios
+
+```
+spot-render-teste-local/
+├── agents/                      # Symlink para spot-render/agents
+├── .env.aiops                   # Configuração AIOps
+├── docs/                        # Documentação
+│   ├── AIOPS_AGENTS.md         # Documentação completa dos agents
+│   ├── postmortems/            # Análises de incidentes
+│   ├── runbooks/               # Procedimentos operacionais
+│   └── playbooks/              # Playbooks de resposta
+├── security-reports/           # Relatórios de segurança
+├── artifacts/                  # Artefatos dos agents
+├── scripts/
+│   ├── setup-local.sh          # Setup completo
+│   ├── teardown-local.sh       # Cleanup completo
+│   ├── setup-aiops.sh          # Setup AIOps
+│   ├── run-autonomous.sh       # Loop autônomo
+│   └── cleanup.sh              # Cleanup
+├── k8s/                        # Manifests Kubernetes
+├── docker-compose.local.yml     # Infraestrutura local
+└── kind-config.yaml            # Configuração Kind
+```
+
+---
+
+## 🔧 Scripts Principais
+
+| Script | Descrição |
+|---------|-----------|
+| `setup-local.sh` | Sobe todo o ambiente (K8s + Docker + AIOps) |
+| `teardown-local.sh` | Derruba todo o ambiente e limpa |
+| `setup-aiops.sh` | Configura apenas os AIOps Agents |
+| `run-autonomous.sh` | Inicia loop autônomo dos agents |
+| `cleanup.sh` | Limpa recursos K8s e Docker |
+
+---
+
+## 📊 Outputs dos Agents
+
+### Security Scanner
+```
+security-reports/
+└── security-report-20260716-184427.json
+```
+
+### Documenter
+```
+docs/
+├── README.md (atualizado)
+├── api/ (se detectado API)
+└── architecture/ (se detectado)
+```
+
+### Monitor
+```
+artifacts/
+└── anomaly-*.json
+```
+
+---
+
+## 👤 Aprovação Humana
+
+**Ações críticas requerem aprovação humana:**
+
+- `delete`, `drop`, `terminate` (SEMPRE)
+- `deploy` em produção (SEMPRE)
+- `restart`, `rollback` (SEMPRE)
+- `production_change` (SEMPRE)
+
+Os agents notificam via Slack (se configurado) e aguardam confirmação antes de executar ações críticas.
+
+---
+
+## 🔍 Troubleshooting
+
+### Ollama não está rodando
+
+```bash
+# Verificar
+ps aux | grep ollama
+
+# Iniciar
+ollama serve
+
+# Ver logs
+tail -f /tmp/ollama.log
+```
+
+### Agents não funcionam
+
+```bash
+# Verificar Python
+cd ~/git/spot-render/agents
+source venv/bin/activate
+
+# Testar LLM
+python -c "from lib.llm import get_llm; print(get_llm().is_available())"
+```
+
+### Ambiente não sobe
+
+```bash
+# Ver logs do Docker
+docker compose -f docker-compose.local.yml logs
+
+# Ver logs do K8s
+kubectl get events -n spot-render
+```
+
+---
+
+## 📚 Referências
+
+- [AIOps Agents - Documentação Técnica](docs/AIOPS_AGENTS.md)
+- [Spot-Render API](../spot-render-api)
+- [Spot-Render Portal](../spot-render-portal)
+- [Spot-Render Infra AWS](../spot-render-infra-aws)
+
+---
+
+## 📝 Licença
+
+MIT
