@@ -10,6 +10,6 @@ resources:
   - ../../../../spot-render-api/k8s/servicemonitor.yaml
   - ../../../../spot-render-api/k8s/worker-deployment.yaml
   - ingress.yaml
-patchesStrategicMerge:
+patches:
   - rollout-patch.yaml
   - configmap-patch.yaml

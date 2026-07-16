@@ -179,7 +179,7 @@ test_agent() {
 
     cd "$AGENTS_DIR"
     source venv/bin/activate
-    export PYTHONPATH="$AGENTS_DIR:$PYTHONPATH"
+    export PYTHONPATH="${PYTHONPATH:+$PYTHONPATH:}$AGENTS_DIR"
     export OLLAMA_BASE_URL=http://localhost:11434
     export OLLAMA_MODEL=llama3.2
 

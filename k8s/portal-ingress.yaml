@@ -3,9 +3,8 @@ kind: Ingress
 metadata:
   name: spot-render-web
   namespace: spot-render
-  annotations:
-    kubernetes.io/ingress.class: nginx
 spec:
+  ingressClassName: nginx
   rules:
     - host: spot-render.local
       http:
