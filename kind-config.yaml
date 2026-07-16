@@ -7,3 +7,11 @@ nodes:
         hostPort: 443
       - containerPort: 30080
         hostPort: 80
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "spot-render=true"
+    labels:
+      spot-render: "true"
