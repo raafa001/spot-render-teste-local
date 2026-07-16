@@ -23,7 +23,7 @@ spec:
               mountPath: /storage
       containers:
         - name: spot-render-backend
-          image: spot-render-backend:dev
+          image: spot-render-backend:6f9853b
           envFrom:
             - configMapRef:
                 name: spot-render-backend-config
