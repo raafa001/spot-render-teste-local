@@ -20,7 +20,7 @@ CLUSTER_MODE=${CLUSTER_MODE:-auto}
 HOST_STORAGE_ROOT=${HOST_STORAGE_ROOT:-/tmp/spot-render-storage}
 API_SHA=$(cd "$BASE_DIR/spot-render-api" && git rev-parse --short HEAD)
 PORTAL_SHA=$(cd "$BASE_DIR/spot-render-portal" && git rev-parse --short HEAD)
-WORKER_SHA=$(cd "$BASE_DIR/spot-render" && git rev-parse --short HEAD)
+WORKER_SHA=$(cd "$BASE_DIR/spot-render-argo" && git rev-parse --short HEAD)
 API_IMAGE=${API_IMAGE:-spot-render-backend:$API_SHA}
 PORTAL_IMAGE=${PORTAL_IMAGE:-spot-render-web:$PORTAL_SHA}
 WORKER_IMAGE=${WORKER_IMAGE:-spot-render-worker:$WORKER_SHA}
@@ -255,7 +255,7 @@ fi
 info "Building container images"
 (cd "$BASE_DIR/spot-render-api" && docker build -t "$API_IMAGE" .)
 (cd "$BASE_DIR/spot-render-portal" && docker build --build-arg NEXT_PUBLIC_API_URL="$PORTAL_API_URL" -t "$PORTAL_IMAGE" .)
-(cd "$BASE_DIR/spot-render" && docker build -t "$WORKER_IMAGE" -f Dockerfile.worker .)
+(cd "$BASE_DIR/spot-render-argo" && docker build -t "$WORKER_IMAGE" -f Dockerfile.worker .)
 
 if [[ $CLUSTER_MODE == kind ]]; then
   kind load docker-image --name spot-render-local "$API_IMAGE"
