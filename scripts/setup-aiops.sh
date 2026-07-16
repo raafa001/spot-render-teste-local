@@ -80,7 +80,7 @@ setup_model() {
     info "Verificando modelo LLM..."
 
     export PATH="$HOME/bin:$PATH"
-    export LD_LIBRARY_PATH="$HOME/.ollama/lib:$LD_LIBRARY_PATH"
+    export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}$HOME/.ollama/lib"
 
     if ollama list 2>/dev/null | grep -q "llama3.2"; then
         info "  ✓ Modelo llama3.2 já está disponível"
