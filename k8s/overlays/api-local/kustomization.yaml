@@ -11,5 +11,5 @@ resources:
   - ../../../../spot-render-api/k8s/worker-deployment.yaml
   - ingress.yaml
 patches:
-  - rollout-patch.yaml
-  - configmap-patch.yaml
+  - path: rollout-patch.yaml
+  - path: configmap-patch.yaml
