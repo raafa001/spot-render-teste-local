@@ -343,6 +343,32 @@ fi
 info "Deploying API/portal/Argo/observability"
 (cd "$REPO_ROOT" && make deploy-api deploy-portal deploy-argo deploy-observability)
 
+info "Configurando Ollama URL para ambiente local..."
+OLLAMA_URL="http://host.docker.internal:11434"
+if kubectl get configmap spot-render-backend-config -n spot-render >/dev/null 2>&1; then
+  kubectl patch configmap spot-render-backend-config -n spot-render -p \
+    "{\"data\":{\"OLLAMA_BASE_URL\":\"$OLLAMA_URL\"}}" 2>/dev/null && \
+    info "  Ollama URL configurada: $OLLAMA_URL" || \
+    warn "  Falha ao configurar Ollama URL (será usado valor default)"
+
+  info "Reiniciando API para aplicar nova configuração..."
+  kubectl rollout restart deployment/spot-render-backend -n spot-render 2>/dev/null && \
+    kubectl rollout status deployment/spot-render-backend -n spot-render --timeout=120s 2>/dev/null || \
+    warn "  API não foi reiniciada (deployment pode não existir)"
+else
+  warn "  ConfigMap não encontrado, pulando configuração de Ollama"
+fi
+
+if kubectl get configmap ai-agent-config -n spot-ai >/dev/null 2>&1; then
+  kubectl patch configmap ai-agent-config -n spot-ai -p \
+    "{\"data\":{\"OLLAMA_BASE_URL\":\"$OLLAMA_URL\"}}" 2>/dev/null && \
+    info "  AI Agent Ollama URL configurada: $OLLAMA_URL" || \
+    warn "  Falha ao configurar AI Agent Ollama URL"
+
+  info "Reiniciando AI Agent para aplicar nova configuração..."
+  kubectl rollout restart deployment/ai-agent -n spot-ai 2>/dev/null || true
+fi
+
 if kubectl get crd rollouts.argoproj.io >/dev/null 2>&1; then
   patch_rollout_image spot-render-backend spot-render "$API_IMAGE"
   patch_rollout_image spot-render-web spot-render "$PORTAL_IMAGE"
