@@ -79,11 +79,6 @@ fi
 cleanup_aiops() {
     info "Limpando AIOps Agents..."
 
-    # Parar Ollama (mantém rodando por padrão para não interromper outros processos)
-    if curl -s http://localhost:11434/api/version > /dev/null 2>&1; then
-        info "  ℹ️ Ollama está rodando (mantido para outros usos)"
-    fi
-
     # Limpar relatórios de segurança antigos (manter últimos 30 dias)
     if [[ -d "$REPO_ROOT/security-reports" ]]; then
         local OLD_REPORTS=$(find "$REPO_ROOT/security-reports" -name "*.json" -mtime +30 2>/dev/null || true)

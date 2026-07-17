@@ -163,6 +163,29 @@ services:
     networks:
       - spot-render-net
 
+  # ─── Ollama (AI/LLM - Spotinho) ───────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: spot-render-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      OLLAMA_MODELS: /root/.ollama/models
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 4G
+        reservations:
+          cpus: "1"
+          memory: 2G
+    networks:
+      - spot-render-net
+
 # ─── Volumes ───────────────────────────────────────────────────────────────────
 
 volumes:
@@ -193,6 +216,13 @@ volumes:
       type: none
       o: bind
       device: ./data/pgadmin
+
+  ollama_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/ollama
 
 # ─── Networks ─────────────────────────────────────────────────────────────────
 

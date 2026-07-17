@@ -177,7 +177,7 @@ if ! command -v docker-compose >/dev/null 2>&1 && ! command -v docker >/dev/null
 else
   # Criar diretórios para volumes do Docker Compose
   rm -rf "$REPO_ROOT/data"
-  mkdir -p "$REPO_ROOT/data/postgres" "$REPO_ROOT/data/redis" "$REPO_ROOT/data/localstack" "$REPO_ROOT/data/pgadmin"
+  mkdir -p "$REPO_ROOT/data/postgres" "$REPO_ROOT/data/redis" "$REPO_ROOT/data/localstack" "$REPO_ROOT/data/pgadmin" "$REPO_ROOT/data/ollama"
   chmod -R 0777 "$REPO_ROOT/data" || warn "Não foi possível ajustar permissões em $REPO_ROOT/data"
 
   # Subir serviços em background
@@ -224,6 +224,31 @@ else
       sleep 2
     done
 
+    # Aguardar Ollama ficar pronto e baixar modelo
+    info "Aguardando Ollama..."
+    for i in {1..30}; do
+      if curl -sf http://localhost:11434/api/tags >/dev/null 2>&1; then
+        info "Ollama está pronto!"
+        break
+      fi
+      if [[ $i -eq 30 ]]; then
+        warn "Ollama não ficou pronto a tempo"
+      fi
+      sleep 2
+    done
+
+    # Baixar modelo llama3.2:latest para Spotinho
+    if docker exec spot-render-ollama ollama list 2>/dev/null | grep -q "llama3.2:latest"; then
+      info "Modelo llama3.2:latest já está disponível"
+    else
+      info "Baixando modelo llama3.2:latest para Spotinho (isso pode levar alguns minutos)..."
+      if docker exec spot-render-ollama ollama pull llama3.2:latest 2>/dev/null; then
+        info "Modelo llama3.2:latest baixado com sucesso!"
+      else
+        warn "Falha ao baixar modelo llama3.2:latest"
+      fi
+    fi
+
     echo ""
     info "┌─────────────────────────────────────────────────────────────┐"
     info "│           SERVIÇOS DE INFRAESTRUTURA LOCAIS               │"
@@ -245,6 +270,9 @@ else
     info "│    - Senha:    admin123!                               │"
     info "│                                                             │"
     info "│  Redis Commander: localhost:8081                          │"
+    info "│                                                             │"
+    info "│  Ollama (Spotinho AI): localhost:11434                    │"
+    info "│    - Modelo:   llama3.2:latest                         │"
     info "└─────────────────────────────────────────────────────────────┘"
     echo ""
   else
@@ -265,6 +293,7 @@ if [[ -n "$PORTAL_ENV_FILE" ]]; then
   info "Configurando $PORTAL_ENV_FILE com NEXT_PUBLIC_API_URL=$PORTAL_API_URL"
   cat <<EOF > "$PORTAL_ENV_FILE"
 NEXT_PUBLIC_API_URL=$PORTAL_API_URL
+NEXT_PUBLIC_OLLAMA_BASE_URL=http://localhost:11434
 EOF
 fi
 
@@ -334,6 +363,7 @@ SERVIÇOS DE INFRAESTRUTURA (Docker):
 - LocalStack: localhost:4566 (SQS + S3 mock)
 - PGAdmin:    localhost:5050  (admin@spot-render.local / admin123!)
 - Redis Commander: localhost:8081
+- Ollama (Spotinho AI): localhost:11434
 
 VARIÁVEIS DE AMBIENTE para API:
   DATABASE_URL=postgresql+psycopg2://render_admin:localdev123!@localhost:5432/renderqueue
@@ -345,6 +375,13 @@ VARIÁVEIS DE AMBIENTE para API:
   AWS_ACCESS_KEY_ID=test
   AWS_SECRET_ACCESS_KEY=test
   AWS_DEFAULT_REGION=us-east-1
+  OLLAMA_BASE_URL=http://localhost:11434
+
+Spotinho AI (Ollama):
+  - URL: http://localhost:11434
+  - Modelo: llama3.2:latest
+  - Variável: OLLAMA_BASE_URL=http://localhost:11434
+  - Portal: NEXT_PUBLIC_OLLAMA_BASE_URL=http://localhost:11434
 
 Para processar arquivos:
 1. Faça upload via portal ou CLI com STORAGE_MODE=local

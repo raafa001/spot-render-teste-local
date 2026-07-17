@@ -1,7 +1,7 @@
 CLUSTER_NAME ?= spot-render-local
 KIND_NODE_IMAGE ?= kindest/node:v1.30.0
 
-.PHONY: kind-up kind-down bootstrap build-api build-portal build-argo load-images deploy-storage deploy-api deploy-portal deploy-argo deploy-observability submit-local cleanup infra-up infra-down infra-status
+.PHONY: kind-up kind-down bootstrap build-api build-portal build-argo load-images deploy-storage deploy-api deploy-portal deploy-argo deploy-observability submit-local cleanup infra-up infra-down infra-status deploy-ollama-local cleanup-ollama-local
 
 KUSTOMIZE ?= kustomize
 
@@ -101,3 +101,22 @@ infra-down:
 
 infra-status:
 	@echo "=== STATUS DOS SERVIÇOS ===" && docker compose -f docker-compose.local.yml ps
+
+# ─── Ollama (Spotinho AI) ─────────────────────────────────────────────────
+
+deploy-ollama-local:
+	@mkdir -p data/ollama
+	docker compose -f docker-compose.local.yml up -d ollama
+	@echo "Aguardando Ollama ficar pronto..."
+	@for i in {1..30}; do \
+		if curl -sf http://localhost:11434/api/tags >/dev/null 2>&1; then \
+			echo "Ollama está pronto!"; \
+			exit 0; \
+		fi; \
+		sleep 2; \
+	done; \
+	echo "Ollama não ficou pronto a tempo"
+
+cleanup-ollama-local:
+	docker compose -f docker-compose.local.yml down ollama
+	rm -rf data/ollama

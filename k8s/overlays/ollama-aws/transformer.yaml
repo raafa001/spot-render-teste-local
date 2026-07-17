@@ -1,0 +1,4 @@
+commonLabels:
+  - path: metadata/labels
+    create: true
+    kind: Namespace

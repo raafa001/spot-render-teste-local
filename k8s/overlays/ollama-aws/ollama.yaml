@@ -1,0 +1,123 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: spot-ai
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ollama-config
+  namespace: spot-ai
+data:
+  OLLAMA_HOST: "0.0.0.0:11434"
+  OLLAMA_MODELS: "/models"
+  OLLAMA_NUM_PARALLEL: "2"
+  OLLAMA_MAX_LOADED_MODELS: "1"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ollama-models
+  namespace: spot-ai
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: efs-sc
+  resources:
+    requests:
+      storage: 50Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+  namespace: spot-ai
+  labels:
+    app: ollama
+    spot.ai/component: llm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ollama
+  template:
+    metadata:
+      labels:
+        app: ollama
+        spot.ai/component: llm
+    spec:
+      nodeSelector:
+        spot.ai/nodetype: gpu
+      tolerations:
+        - key: "spot.ai/nodetype"
+          operator: "Equal"
+          value: "gpu"
+          effect: "NoSchedule"
+      containers:
+        - name: ollama
+          image: ollama/ollama:latest
+          ports:
+            - containerPort: 11434
+              name: api
+          envFrom:
+            - configMapRef:
+                name: ollama-config
+          resources:
+            requests:
+              memory: "8Gi"
+              nvidia.com/gpu: "1"
+            limits:
+              memory: "16Gi"
+              nvidia.com/gpu: "1"
+          volumeMounts:
+            - name: models
+              mountPath: /models
+          readinessProbe:
+            httpGet:
+              path: /api/tags
+              port: 11434
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/tags
+              port: 11434
+            initialDelaySeconds: 60
+            periodSeconds: 30
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: ollama-models
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama
+  namespace: spot-ai
+  labels:
+    app: ollama
+spec:
+  type: ClusterIP
+  ports:
+    - port: 11434
+      targetPort: 11434
+      name: api
+  selector:
+    app: ollama
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama-loadBalancer
+  namespace: spot-ai
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-subnet-scheme: "private"
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 11434
+      name: api
+  selector:
+    app: ollama
