@@ -121,13 +121,6 @@ case "$CLUSTER_MODE" in
     require_cmd kind
     if ! kind get clusters | grep -q "spot-render-local"; then
       (cd "$REPO_ROOT" && make kind-up)
-    else
-      info "Kind cluster already exists. Checking extrahosts configuration..."
-      if ! kubectl get nodes -o jsonpath='{.items[*].status.addresses[?(@.type=="Hostname")].address}' | grep -q "host.docker.internal"; then
-        warn "Cluster missing host.docker.internal extrahosts. Recreating cluster..."
-        kind delete cluster --name spot-render-local
-        (cd "$REPO_ROOT" && make kind-up)
-      fi
     fi
     if ! kubectl get ns ingress-nginx >/dev/null 2>&1; then
       info "Instalando ingress-nginx (kind)"
