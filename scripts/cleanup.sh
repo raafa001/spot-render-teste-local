@@ -101,6 +101,28 @@ if [[ -d "$HOST_STORAGE_ROOT" ]]; then
     warn "  Não foi possível limpar storage (permissão negada)"
 fi
 
+# ─── Limpar AI Agent (Autonomous Self-Healing) ──────────────────────────────
+info "Removendo AI Agent (Autonomous Self-Healing)..."
+if kubectl get namespace spot-ai >/dev/null 2>&1; then
+  info "  Removendo namespace spot-ai (AI Agent + Ollama)..."
+  kubectl delete namespace spot-ai --ignore-not-found >/dev/null 2>&1 || true
+
+  # Validar remoção
+  if ! kubectl get namespace spot-ai >/dev/null 2>&1; then
+    info "  ✓ Namespace spot-ai removido"
+  else
+    warn "  ✗ Namespace spot-ai ainda existe, forçando remoção..."
+    kubectl delete namespace spot-ai --grace-period=0 --force >/dev/null 2>&1 || true
+  fi
+else
+  info "  Namespace spot-ai não existe (OK)"
+fi
+
+# Limpar artifacts do AI Agent
+if [[ -d "$REPO_ROOT/artifacts" ]]; then
+  rm -rf "$REPO_ROOT/artifacts"/*ai-agent* 2>/dev/null || true
+fi
+
 # ─── Limpar AIOps Agents ──────────────────────────────────────────────────────
 cleanup_aiops() {
     info "Limpando AIOps Agents..."

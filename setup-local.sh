@@ -372,6 +372,37 @@ else
     warn "Script setup-aiops.sh não encontrado ou não executável"
 fi
 
+# ─── Deploy AI Agent (Autonomous Self-Healing) ────────────────────────────────
+info "Deploying AI Agent (Autonomous Self-Healing)..."
+AGENT_READY=false
+if [[ -f "$REPO_ROOT/k8s/overlays/ai-agent/ai-agent.yaml" ]]; then
+  if kubectl apply -f "$REPO_ROOT/k8s/overlays/ai-agent/ai-agent.yaml" 2>/dev/null; then
+    info "AI Agent deployment criado"
+
+    info "Aguardando AI Agent ficar pronto..."
+    for i in {1..30}; do
+      AGENT_POD=$(kubectl get pods -n spot-ai -l app=ai-agent -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+      if [[ -n "$AGENT_POD" ]]; then
+        PHASE=$(kubectl get pod "$AGENT_POD" -n spot-ai -o jsonpath='{.status.phase}' 2>/dev/null || echo "Unknown")
+        if [[ "$PHASE" == "Running" ]]; then
+          info "AI Agent está rodando!"
+          AGENT_READY=true
+          break
+        fi
+      fi
+      sleep 2
+    done
+
+    if [[ "$AGENT_READY" != "true" ]]; then
+      warn "AI Agent pode não estar pronto. Verifique com: kubectl get pods -n spot-ai"
+    fi
+  else
+    warn "Falha ao aplicar AI Agent manifest"
+  fi
+else
+  warn "AI Agent manifest não encontrado"
+fi
+
 # ─── Validar que Spotinho AI está funcionando ─────────────────────────────────
 info "Validando Spotinho AI..."
 SPOTINHO_READY=false
@@ -397,6 +428,12 @@ else
   SPOTINHO_STATUS="✗ Verificar (não respondeu)"
 fi
 
+if [[ "$AGENT_READY" == "true" ]]; then
+  AGENT_STATUS="✓ Rodando (auto-correção ativa)"
+else
+  AGENT_STATUS="✗ Verificar status"
+fi
+
 cat <<MSG
 
 ╔══════════════════════════════════════════════════════════════════════╗
@@ -407,6 +444,7 @@ cat <<MSG
 ║    ✓ API:       http://spot-render.local (via ingress)             ║
 ║    ✓ Portal:    http://spot-render.local                           ║
 ║    ✓ Spotinho:  http://spot-render.local (chatbot AI)              ║
+║    ✓ AI Agent:  namespace spot-ai (autonomous self-healing)         ║
 ║                                                                      ║
 ║  SERVIÇOS DE INFRAESTRUTURA (Docker):                              ║
 ║    ✓ PostgreSQL:  localhost:5432 (render_admin / localdev123!)     ║
@@ -418,6 +456,7 @@ cat <<MSG
 ║                                                                      ║
 ║  VALIDAÇÃO AI:                                                      ║
 ║    $SPOTINHO_STATUS                                                 ║
+║    $AGENT_STATUS                                                    ║
 ║                                                                      ║
 ╚══════════════════════════════════════════════════════════════════════╝
 
@@ -437,6 +476,12 @@ Spotinho AI (Ollama):
   - Portal:  NEXT_PUBLIC_OLLAMA_BASE_URL=http://localhost:11434
   - Portal:  NEXT_PUBLIC_AI_API_URL=http://api.spot-render.local
   - API:     OLLAMA_BASE_URL=http://localhost:11434
+
+AI Agent (Self-Healing):
+  - Namespace: spot-ai
+  - Usa Ollama para diagnóstico e auto-correção
+  - Logs: kubectl logs -n spot-ai -l app=ai-agent -f
+  - Status: kubectl get pods -n spot-ai
 
 Para processar arquivos:
 1. Faça upload via portal ou CLI com STORAGE_MODE=local

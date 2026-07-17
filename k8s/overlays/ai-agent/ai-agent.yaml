@@ -1,0 +1,264 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: spot-ai
+  labels:
+    spot.ai/managed: "true"
+    spot.ai/component: autonomous-agent
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-agent-config
+  namespace: spot-ai
+data:
+  OLLAMA_BASE_URL: "http://ollama.spot-ai.svc.cluster.local:11434"
+  OLLAMA_MODEL: "llama3.2:latest"
+  AGENT_INTERVAL_SECONDS: "300"
+  LOG_LEVEL: "INFO"
+  SELF_HEALING_ENABLED: "true"
+  MAX_RETRIES_PER_ISSUE: "3"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-agent-code
+  namespace: spot-ai
+data:
+  autonomous_agent.py: |
+    #!/usr/bin/env python3
+    import os, sys, json, time, logging, urllib.request, urllib.error
+    from datetime import datetime, timedelta
+    from typing import Optional, Dict, List, Any
+
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    logger = logging.getLogger("autonomous_agent")
+
+    class OllamaClient:
+        def __init__(self, base_url, model):
+            self.base_url = base_url.rstrip('/')
+            self.model = model
+            self.timeout = 120
+
+        def is_available(self) -> bool:
+            try:
+                req = urllib.request.Request(f"{self.base_url}/api/tags")
+                with urllib.request.urlopen(req, timeout=5) as r:
+                    return r.status == 200
+            except: return False
+
+        def chat(self, message: str, context: Optional[str] = None) -> str:
+            system = """Você é o Spotinho, assistente de IA do Spot Render para auto-correção.
+    REGRAS: Nunca exponha credenciais. Prefira soluções não-destrutivas.
+    Responda em JSON: {"diagnosis": "...", "cause": "...", "actions": [...], "prevention": "..."}"""
+            messages = [{"role": "system", "content": system}]
+            if context: messages.append({"role": "system", "content": context})
+            messages.append({"role": "user", "content": message})
+            try:
+                data = json.dumps({"model": self.model, "messages": messages, "stream": False}).encode()
+                req = urllib.request.Request(f"{self.base_url}/api/chat", data=data, headers={'Content-Type': 'application/json'})
+                with urllib.request.urlopen(req, timeout=self.timeout) as r:
+                    return json.loads(r.read().decode()).get('message', {}).get('content', '{}')
+            except Exception as e:
+                return json.dumps({"diagnosis": f"Erro Ollama: {e}", "cause": "falha", "actions": [], "prevention": "verificar"})
+
+    class K8sClient:
+        def __init__(self):
+            self.namespace = os.getenv("POD_NAMESPACE", "spot-render")
+
+        def get_pods(self, label="") -> List[Dict]:
+            import subprocess
+            try:
+                cmd = ["kubectl", "get", "pods", "-n", self.namespace, "-o", "json"]
+                if label: cmd.extend(["-l", label])
+                r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+                return json.loads(r.stdout).get('items', []) if r.returncode == 0 else []
+            except: return []
+
+        def get_events(self, mins=30) -> str:
+            import subprocess
+            try:
+                since = (datetime.now() - timedelta(minutes=mins)).isoformat()
+                r = subprocess.run(["kubectl", "get", "events", "-n", self.namespace, "--since", since, "-o", "wide"], capture_output=True, text=True, timeout=30)
+                return r.stdout if r.returncode == 0 else ""
+            except: return ""
+
+        def exec_cmd(self, cmd: List[str]) -> tuple:
+            import subprocess
+            try:
+                r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+                return r.stdout, r.stderr, r.returncode
+            except Exception as e:
+                return "", str(e), 1
+
+    class AutonomousAgent:
+        def __init__(self):
+            self.ollama = OllamaClient(os.getenv("OLLAMA_BASE_URL", "http://ollama.spot-ai.svc.cluster.local:11434"), os.getenv("OLLAMA_MODEL", "llama3.2:latest"))
+            self.k8s = K8sClient()
+            self.interval = int(os.getenv("AGENT_INTERVAL_SECONDS", "300"))
+            self.self_heal = os.getenv("SELF_HEALING_ENABLED", "true").lower() == "true"
+            self.max_retries = int(os.getenv("MAX_RETRIES_PER_ISSUE", "3"))
+            self.issues: Dict[str, int] = {}
+
+        def check_ollama(self) -> bool:
+            if self.ollama.is_available():
+                logger.info("Ollama: OK")
+                return True
+            logger.warning("Ollama: FAIL")
+            return False
+
+        def analyze(self) -> Dict:
+            events = self.k8s.get_events(30)
+            unhealthy = []
+            for pod in self.k8s.get_pods():
+                phase = pod.get('status', {}).get('phase', '')
+                if phase in ['Pending', 'Failed', 'Unknown']:
+                    unhealthy.append({'name': pod['metadata']['name'], 'phase': phase})
+            return {'timestamp': datetime.now().isoformat(), 'unhealthy': unhealthy, 'events': events[:2000]}
+
+        def diagnose(self, health: Dict) -> str:
+            prompt = f"Analise e proponha auto-correção:\n{json.dumps(health)}\nResponda JSON."
+            return self.ollama.chat(prompt)
+
+        def heal(self, diagnosis: Dict) -> bool:
+            if not self.self_heal: return False
+            key = diagnosis.get('diagnosis', 'unknown')
+            if self.issues.get(key, 0) >= self.max_retries: return False
+            for action in diagnosis.get('actions', []):
+                if action.get('action', '').startswith('kubectl'):
+                    logger.info(f"Executing: {action['action']}")
+                    out, err, code = self.k8s.exec_cmd(action['action'].split())
+                    if code == 0: logger.info(f"Success: {action['action']}")
+                    else: logger.error(f"Failed: {err}")
+            self.issues[key] = self.issues.get(key, 0) + 1
+            return True
+
+        def cycle(self):
+            if not self.check_ollama(): return
+            health = self.analyze()
+            if health['unhealthy']:
+                diag = self.diagnose(health)
+                try: self.heal(json.loads(diag))
+                except: pass
+            logger.info(f"Cycle done. Sleeping {self.interval}s")
+
+        def run(self):
+            logger.info("Autonomous Agent starting...")
+            while True:
+                try: self.cycle()
+                except Exception as e: logger.error(f"Cycle error: {e}")
+                time.sleep(self.interval)
+
+    if __name__ == "__main__":
+        if "--health" in sys.argv: print("OK"); sys.exit(0)
+        AutonomousAgent().run()
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-agent
+  namespace: spot-ai
+  labels:
+    app: ai-agent
+    spot.ai/component: autonomous-agent
+    spot.ai/autonomous: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai-agent
+  template:
+    metadata:
+      labels:
+        app: ai-agent
+        spot.ai/component: autonomous-agent
+        spot.ai/autonomous: "true"
+    spec:
+      serviceAccountName: ai-agent
+      containers:
+        - name: ai-agent
+          image: python:3.11-slim
+          command: ["python", "/agent/autonomous_agent.py"]
+          envFrom:
+            - configMapRef:
+                name: ai-agent-config
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          volumeMounts:
+            - name: agent-code
+              mountPath: /agent
+          livenessProbe:
+            exec:
+              command: ["python", "-c", "print('OK')"]
+            initialDelaySeconds: 30
+            periodSeconds: 60
+          readinessProbe:
+            exec:
+              command: ["python", "-c", "print('OK')"]
+            initialDelaySeconds: 10
+            periodSeconds: 30
+      volumes:
+        - name: agent-code
+          configMap:
+            name: ai-agent-code
+            defaultMode: 0755
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ai-agent
+  namespace: spot-ai
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ai-agent
+  namespace: spot-ai
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "configmaps", "secrets", "events"]
+    verbs: ["get", "list", "watch", "patch", "update", "create"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list", "watch", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ai-agent
+  namespace: spot-ai
+subjects:
+  - kind: ServiceAccount
+    name: ai-agent
+    namespace: spot-ai
+roleRef:
+  kind: Role
+  name: ai-agent
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-agent
+  namespace: spot-ai
+  labels:
+    app: ai-agent
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http
+  selector:
+    app: ai-agent
