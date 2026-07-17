@@ -75,7 +75,7 @@ if docker compose -f "$REPO_ROOT/docker-compose.local.yml" down --volumes --remo
     docker rm -f spot-render-ollama >/dev/null 2>&1 || true
   fi
 
-  # Verificar se há残留 volumes
+  # Verificar se há volumes residuais
   OLLAMA_VOLUME=$(docker volume ls -q -f name="spot-render-teste-local_ollama" 2>/dev/null || true)
   if [[ -n "$OLLAMA_VOLUME" ]]; then
     info "Removendo volume Ollama..."

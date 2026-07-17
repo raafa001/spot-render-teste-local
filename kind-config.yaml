@@ -8,8 +8,8 @@ nodes:
       - containerPort: 30080
         hostPort: 80
     extrahosts:
-      - hostname: host.docker.internal
-        ip: 172.17.0.1
+      - hostname: "host.docker.internal"
+        ip: "host-gateway"
     kubeadmConfigPatches:
       - |
         kind: InitConfiguration
