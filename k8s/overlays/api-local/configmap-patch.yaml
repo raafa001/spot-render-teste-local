@@ -18,3 +18,4 @@ data:
   WORKER_OUTPUT_ROOT: "/storage/output"
   WORKER_PROCESSED_ROOT: "/storage/completed"
   WORKER_FAILED_ROOT: "/storage/failed"
+  OLLAMA_BASE_URL: "http://host.docker.internal:11434"

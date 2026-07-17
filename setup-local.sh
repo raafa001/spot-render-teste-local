@@ -121,6 +121,13 @@ case "$CLUSTER_MODE" in
     require_cmd kind
     if ! kind get clusters | grep -q "spot-render-local"; then
       (cd "$REPO_ROOT" && make kind-up)
+    else
+      info "Kind cluster already exists. Checking extrahosts configuration..."
+      if ! kubectl get nodes -o jsonpath='{.items[*].status.addresses[?(@.type=="Hostname")].address}' | grep -q "host.docker.internal"; then
+        warn "Cluster missing host.docker.internal extrahosts. Recreating cluster..."
+        kind delete cluster --name spot-render-local
+        (cd "$REPO_ROOT" && make kind-up)
+      fi
     fi
     if ! kubectl get ns ingress-nginx >/dev/null 2>&1; then
       info "Instalando ingress-nginx (kind)"
@@ -295,6 +302,7 @@ else
     info "│  Redis Commander: localhost:8081                          │"
     info "│                                                             │"
     info "│  Ollama (Spotinho AI): localhost:11434                    │"
+    info "│    - API K8s: host.docker.internal:11434               │"
     info "│    - Modelo:   llama3.2:latest                         │"
     info "└─────────────────────────────────────────────────────────────┘"
     echo ""
@@ -470,12 +478,12 @@ VARIÁVEIS DE AMBIENTE para API:
   AWS_ACCESS_KEY_ID=test
   AWS_SECRET_ACCESS_KEY=test
   AWS_DEFAULT_REGION=us-east-1
-  OLLAMA_BASE_URL=http://localhost:11434
+  OLLAMA_BASE_URL=http://host.docker.internal:11434
 
 Spotinho AI (Ollama):
-  - Portal:  NEXT_PUBLIC_OLLAMA_BASE_URL=http://localhost:11434
+  - Portal (browser): NEXT_PUBLIC_OLLAMA_BASE_URL=http://localhost:11434
   - Portal:  NEXT_PUBLIC_AI_API_URL=http://api.spot-render.local
-  - API:     OLLAMA_BASE_URL=http://localhost:11434
+  - API K8s: OLLAMA_BASE_URL=http://host.docker.internal:11434
 
 AI Agent (Self-Healing):
   - Namespace: spot-ai
