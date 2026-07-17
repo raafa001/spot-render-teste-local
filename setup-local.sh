@@ -226,26 +226,49 @@ else
 
     # Aguardar Ollama ficar pronto e baixar modelo
     info "Aguardando Ollama..."
+    OLLAMA_READY=false
     for i in {1..30}; do
       if curl -sf http://localhost:11434/api/tags >/dev/null 2>&1; then
-        info "Ollama está pronto!"
+        info "Ollama API está respondendo!"
+        OLLAMA_READY=true
         break
       fi
       if [[ $i -eq 30 ]]; then
-        warn "Ollama não ficou pronto a tempo"
+        warn "Ollama não ficou pronto a tempo (API não responde)"
       fi
       sleep 2
     done
 
-    # Baixar modelo llama3.2:latest para Spotinho
-    if docker exec spot-render-ollama ollama list 2>/dev/null | grep -q "llama3.2:latest"; then
-      info "Modelo llama3.2:latest já está disponível"
+    if [[ "$OLLAMA_READY" != "true" ]]; then
+      warn "Ollama não está funcional. Continuando com setup..."
     else
-      info "Baixando modelo llama3.2:latest para Spotinho (isso pode levar alguns minutos)..."
-      if docker exec spot-render-ollama ollama pull llama3.2:latest 2>/dev/null; then
-        info "Modelo llama3.2:latest baixado com sucesso!"
+      # Baixar modelo llama3.2:latest para Spotinho
+      info "Verificando modelo llama3.2:latest..."
+      if docker exec spot-render-ollama ollama list 2>/dev/null | grep -q "llama3.2:latest"; then
+        info "Modelo llama3.2:latest já está disponível"
       else
-        warn "Falha ao baixar modelo llama3.2:latest"
+        info "Baixando modelo llama3.2:latest para Spotinho (isso pode levar alguns minutos)..."
+        if docker exec spot-render-ollama ollama pull llama3.2:latest 2>/dev/null; then
+          info "Modelo llama3.2:latest baixado com sucesso!"
+        else
+          warn "Falha ao baixar modelo llama3.2:latest"
+        fi
+      fi
+
+      # Validar que o modelo está carregado e respondendo
+      info "Validando modelo Ollama..."
+      OLLAMA_MODEL_READY=false
+      for i in {1..5}; do
+        if docker exec spot-render-ollama ollama run llama3.2:latest "ping" >/dev/null 2>&1; then
+          info "Modelo llama3.2:latest está respondendo!"
+          OLLAMA_MODEL_READY=true
+          break
+        fi
+        sleep 3
+      done
+
+      if [[ "$OLLAMA_MODEL_READY" != "true" ]]; then
+        warn "Modelo Ollama pode não estar totalmente carregado (vai carregar no primeiro uso)"
       fi
     fi
 
@@ -349,22 +372,54 @@ else
     warn "Script setup-aiops.sh não encontrado ou não executável"
 fi
 
+# ─── Validar que Spotinho AI está funcionando ─────────────────────────────────
+info "Validando Spotinho AI..."
+SPOTINHO_READY=false
+for i in {1..10}; do
+  if curl -sf http://spot-render.local/ai/status >/dev/null 2>&1; then
+    info "Spotinho AI está pronto e respondendo!"
+    SPOTINHO_READY=true
+    break
+  fi
+  info "Aguardando Spotinho AI... ($i/10)"
+  sleep 3
+done
+
+if [[ "$SPOTINHO_READY" != "true" ]]; then
+  warn "Spotinho AI pode não estar totalmente pronto. Verifique:"
+  warn "  1. Ollama está rodando: docker ps | grep ollama"
+  warn "  2. API tem OLLAMA_BASE_URL=http://localhost:11434"
+fi
+
+if [[ "$SPOTINHO_READY" == "true" ]]; then
+  SPOTINHO_STATUS="✓ Pronto (respondeu)"
+else
+  SPOTINHO_STATUS="✗ Verificar (não respondeu)"
+fi
+
 cat <<MSG
-[√] Ambiente local pronto.
 
-SERVIÇOS KUBERNETES:
-- API: http://spot-render.local (via ingress)
-- Portal: http://spot-render.local
-- SonarQube local: kubectl port-forward -n monitoring svc/spot-sonarqube-sonarqube 9000:9000
-- Grafana: kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80
-
-SERVIÇOS DE INFRAESTRUTURA (Docker):
-- PostgreSQL:  localhost:5432 (render_admin / localdev123!)
-- Redis:      localhost:6379  (senha: localdev123!)
-- LocalStack: localhost:4566 (SQS + S3 mock)
-- PGAdmin:    localhost:5050  (admin@spot-render.local / admin123!)
-- Redis Commander: localhost:8081
-- Ollama (Spotinho AI): localhost:11434
+╔══════════════════════════════════════════════════════════════════════╗
+║                    AMBIENTE LOCAL PRONTO!                          ║
+╠══════════════════════════════════════════════════════════════════════╣
+║                                                                      ║
+║  SERVIÇOS KUBERNETES:                                               ║
+║    ✓ API:       http://spot-render.local (via ingress)             ║
+║    ✓ Portal:    http://spot-render.local                           ║
+║    ✓ Spotinho:  http://spot-render.local (chatbot AI)              ║
+║                                                                      ║
+║  SERVIÇOS DE INFRAESTRUTURA (Docker):                              ║
+║    ✓ PostgreSQL:  localhost:5432 (render_admin / localdev123!)     ║
+║    ✓ Redis:      localhost:6379  (senha: localdev123!)             ║
+║    ✓ LocalStack: localhost:4566 (SQS + S3 mock)                   ║
+║    ✓ PGAdmin:    localhost:5050  (admin@spot-render.local)         ║
+║    ✓ Redis Commander: localhost:8081                               ║
+║    ✓ Ollama AI:  localhost:11434 (modelo: llama3.2:latest)        ║
+║                                                                      ║
+║  VALIDAÇÃO AI:                                                      ║
+║    $SPOTINHO_STATUS                                                 ║
+║                                                                      ║
+╚══════════════════════════════════════════════════════════════════════╝
 
 VARIÁVEIS DE AMBIENTE para API:
   DATABASE_URL=postgresql+psycopg2://render_admin:localdev123!@localhost:5432/renderqueue
@@ -379,15 +434,17 @@ VARIÁVEIS DE AMBIENTE para API:
   OLLAMA_BASE_URL=http://localhost:11434
 
 Spotinho AI (Ollama):
-  - URL: http://localhost:11434
-  - Modelo: llama3.2:latest
-  - Variável: OLLAMA_BASE_URL=http://localhost:11434
-  - Portal: NEXT_PUBLIC_OLLAMA_BASE_URL=http://localhost:11434
+  - Portal:  NEXT_PUBLIC_OLLAMA_BASE_URL=http://localhost:11434
+  - Portal:  NEXT_PUBLIC_AI_API_URL=http://api.spot-render.local
+  - API:     OLLAMA_BASE_URL=http://localhost:11434
 
 Para processar arquivos:
 1. Faça upload via portal ou CLI com STORAGE_MODE=local
 2. Liste os arquivos em \$HOST_STORAGE_ROOT/shared e rode:
    make submit-local KEY="input/<proj>/<var>/<timestamp>/<arquivo>" PROJECT=<proj> VARIATION=<var> ARTIST=<nome>
 
-Quando terminar, execute ./teardown-local.sh (ou ./scripts/cleanup.sh) para remover os recursos e limpar o storage local.
+Para verificar Spotinho:
+  curl http://spot-render.local/ai/status
+
+Quando terminar, execute ./teardown-local.sh (ou ./scripts/cleanup.sh) para remover os recursos.
 MSG

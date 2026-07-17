@@ -51,10 +51,36 @@ for ns in spot-render rendering monitoring; do
 done
 
 # ─── Derrubar serviços Docker de infraestrutura local ───────────────────────
-info "Derrubando serviços de infraestrutura local (PostgreSQL, Redis, LocalStack)..."
+info "Derrubando serviços de infraestrutura local..."
+info "  - PostgreSQL"
+info "  - Redis"
+info "  - LocalStack"
+info "  - PGAdmin"
+info "  - Redis Commander"
+info "  - Ollama (Spotinho AI)"
 REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
+
+# Verificar se Ollama está rodando antes de parar
+if docker ps --format '{{.Names}}' | grep -q "spot-render-ollama"; then
+  info "Parando Ollama..."
+  docker stop spot-render-ollama >/dev/null 2>&1 || true
+fi
+
 if docker compose -f "$REPO_ROOT/docker-compose.local.yml" down --volumes --remove-orphans >/dev/null 2>&1; then
   info "Serviços Docker parados e volumes removidos"
+
+  # Validar que Ollama foi removido
+  if docker ps -a --format '{{.Names}}' | grep -q "spot-render-ollama"; then
+    warn "Container Ollama ainda existe, removendo..."
+    docker rm -f spot-render-ollama >/dev/null 2>&1 || true
+  fi
+
+  # Verificar se há残留 volumes
+  OLLAMA_VOLUME=$(docker volume ls -q -f name="spot-render-teste-local_ollama" 2>/dev/null || true)
+  if [[ -n "$OLLAMA_VOLUME" ]]; then
+    info "Removendo volume Ollama..."
+    docker volume rm "$OLLAMA_VOLUME" >/dev/null 2>&1 || warn "Falha ao remover volume Ollama"
+  fi
 else
   warn "Falha ao derrubar serviços Docker (ou docker compose não disponível)"
 fi
