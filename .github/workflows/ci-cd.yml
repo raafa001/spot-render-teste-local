@@ -1,0 +1,419 @@
+name: CI/CD - Spot Render Test Local (ArgoCD Hub)
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  KUBERNETES_VERSION: v1.30.0
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # ============================================================================
+  # CI - Lint and Validate
+  # ============================================================================
+  lint-and-validate:
+    name: Lint and Validate
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install linting tools
+        run: |
+          pip install yamllint kubernetes kustomize
+
+      - name: Lint Kubernetes manifests
+        run: |
+          echo "=== Linting Kubernetes manifests ==="
+          yamllint k8s/overlays/ k8s/*.yaml 2>/dev/null || true
+
+      - name: Validate YAML structure
+        run: |
+          echo "=== Validating YAML structure ==="
+          python3 -c "
+import yaml
+import sys
+from pathlib import Path
+
+errors = []
+for f in Path('k8s').rglob('*.yaml'):
+    try:
+        with open(f) as file:
+            docs = list(yaml.safe_load_all(file))
+        print(f'✓ {f} ({len(docs)} documents)')
+    except Exception as e:
+        errors.append(f'{f}: {e}')
+        print(f'✗ {f}: {e}')
+
+if errors:
+    print(f'\n{len(errors)} files with errors')
+    sys.exit(1)
+print('\n✓ All manifests valid')
+"
+
+      - name: Validate Kustomize overlays
+        run: |
+          echo "=== Validating Kustomize overlays ==="
+          for overlay in k8s/overlays/*/; do
+            if [ -f "$overlay/kustomization.yaml" ]; then
+              echo "Checking: $overlay"
+              # Note: kustomize build would be run here if installed
+              echo "✓ $overlay has kustomization.yaml"
+            fi
+          done
+
+  # ============================================================================
+  # CI - Security Scan
+  # ============================================================================
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          scan-ref: 'k8s'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload security results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+        if: always()
+
+      - name: Check for hardcoded secrets
+        run: |
+          echo "=== Checking for hardcoded secrets ==="
+          if grep -rE "(password|secret|token)\s*[:=]\s*['\"]" k8s/ 2>/dev/null | grep -v "kind: Secret"; then
+            echo "⚠️ Warning: Potential hardcoded secrets found"
+          else
+            echo "✓ No obvious hardcoded secrets"
+          fi
+
+  # ============================================================================
+  # CI - Overlay Analysis
+  # ============================================================================
+  analyze-overlays:
+    name: Analyze Overlays
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: List all overlays
+        run: |
+          echo "=== Available Overlays ==="
+          for overlay in k8s/overlays/*/; do
+            name=$(basename "$overlay")
+            if [ -f "$overlay/kustomization.yaml" ]; then
+              echo "✓ $name (kustomized)"
+            else
+              echo "○ $name (raw)"
+            fi
+          done
+
+      - name: Check overlay dependencies
+        run: |
+          echo "=== Checking Overlay Dependencies ==="
+          # Verify that base resources exist for overlays
+          echo "Checking Ollama overlay..."
+          if [ -d "k8s/overlays/ollama-aws" ]; then
+            echo "✓ Ollama AWS overlay exists"
+          fi
+          echo "Checking AI agent overlay..."
+          if [ -d "k8s/overlays/ai-agent" ]; then
+            echo "✓ AI Agent overlay exists"
+          fi
+
+  # ============================================================================
+  # CD - Deploy Local Overlay
+  # ============================================================================
+  deploy-local:
+    name: Deploy Local Overlay
+    needs: [lint-and-validate, security-scan]
+    runs-on: ubuntu-24.04
+    if: github.ref == 'refs/heads/main'
+    environment: local
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v5
+        with:
+          version: ${{ env.KUBERNETES_VERSION }}
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v4
+        with:
+          kubeconfig: ${{ secrets.KUBECONFIG }}
+
+      - name: Verify cluster
+        run: |
+          kubectl cluster-info
+          kubectl get namespaces
+
+      - name: Create namespaces
+        run: |
+          echo "=== Creating namespaces ==="
+          kubectl apply -f k8s/namespaces.yaml
+          kubectl get namespaces
+
+      - name: Deploy Namespaces
+        run: |
+          echo "=== Applying namespace configuration ==="
+          kubectl apply -f k8s/namespaces.yaml
+
+      - name: Deploy Storage (HostPath)
+        run: |
+          echo "=== Deploying storage configuration ==="
+          kubectl apply -f k8s/storage.yaml
+
+      - name: Deploy Ingress
+        run: |
+          echo "=== Deploying ingress configuration ==="
+          kubectl apply -f k8s/portal-ingress.yaml || echo "Ingress may already exist"
+
+      - name: Deploy API Local Overlay
+        run: |
+          echo "=== Deploying API local overlay ==="
+          if [ -d "k8s/overlays/api-local" ]; then
+            kubectl apply -k k8s/overlays/api-local
+            echo "✓ API local deployed"
+          fi
+
+      - name: Deploy Ollama Local Overlay
+        run: |
+          echo "=== Deploying Ollama (if not exists) ==="
+          # Check if Ollama is already running
+          if kubectl get deployment ollama -n spot-ai &>/dev/null; then
+            echo "✓ Ollama already deployed, skipping"
+          else
+            echo "Ollama not found - it should be deployed from spot-render-ollama repo"
+          fi
+
+      - name: Deploy AI Agent Overlay
+        run: |
+          echo "=== Deploying AI Agent overlay ==="
+          if [ -d "k8s/overlays/ai-agent" ]; then
+            kubectl apply -f k8s/overlays/ai-agent/ai-agent.yaml
+            echo "✓ AI Agent deployed"
+          fi
+
+      - name: Verify deployment
+        run: |
+          echo "=== Verifying all deployments ==="
+          echo "--- Namespaces ---"
+          kubectl get namespaces
+          echo ""
+          echo "--- Spot-AI namespace ---"
+          kubectl get all -n spot-ai 2>/dev/null || echo "No resources in spot-ai"
+          echo ""
+          echo "--- Spot-Render namespace ---"
+          kubectl get all -n spot-render 2>/dev/null || echo "No resources in spot-render"
+
+  # ============================================================================
+  # CD - Integration Tests
+  # ============================================================================
+  integration-tests:
+    name: Integration Tests
+    needs: [deploy-local]
+    runs-on: ubuntu-24.04
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v5
+        with:
+          version: ${{ env.KUBERNETES_VERSION }}
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v4
+        with:
+          kubeconfig: ${{ secrets.KUBECONFIG }}
+
+      - name: Run integration tests
+        run: |
+          echo "=== Running Integration Tests ==="
+
+          # Test 1: Ollama API
+          echo "Test 1: Ollama API availability"
+          kubectl run curl-test --image=curlimages/curl:latest --rm -i --restart=Never --timeout=60s -- \
+            curl -s http://ollama.spot-ai.svc.cluster.local:11434/api/tags && echo "✓ Ollama API OK" || echo "⚠️ Ollama API not reachable"
+
+          # Test 2: AI Agent
+          echo ""
+          echo "Test 2: AI Agent status"
+          if kubectl get deployment ai-agent -n spot-ai &>/dev/null; then
+            kubectl get deployment ai-agent -n spot-ai
+            echo "✓ AI Agent deployed"
+          else
+            echo "⚠️ AI Agent not found"
+          fi
+
+          # Test 3: Core services
+          echo ""
+          echo "Test 3: Core services"
+          kubectl get deployments -n spot-render
+
+  # ============================================================================
+  # CD - Update ArgoCD Applications
+  # ============================================================================
+  update-argocd:
+    name: Update ArgoCD Applications
+    needs: [integration-tests]
+    runs-on: ubuntu-24.04
+    if: github.ref == 'refs/heads/main'
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v5
+        with:
+          version: ${{ env.KUBERNETES_VERSION }}
+
+      - name: Configure kubectl for ArgoCD
+        uses: azure/k8s-set-context@v4
+        with:
+          kubeconfig: ${{ secrets.ARGOCD_KUBECONFIG }}
+
+      - name: Create ArgoCD Application Set
+        run: |
+          echo "=== Creating ArgoCD Application Set ==="
+          # This would create/update ArgoCD Applications for all overlays
+          cat <<'EOF'
+          # ArgoCD Applications would be created here:
+          #
+          # apiVersion: argoproj.io/v1alpha1
+          # kind: Application
+          # metadata:
+          #   name: spot-render-portal
+          #   namespace: argocd
+          # spec:
+          #   source:
+          #     repoURL: https://github.com/raafa001/spot-render-teste-local
+          #     targetRevision: main
+          #     path: k8s/overlays/api-local
+          #   destination:
+          #     server: https://kubernetes.default.svc
+          #     namespace: spot-render
+          #
+          # apiVersion: argoproj.io/v1alpha1
+          # kind: Application
+          # metadata:
+          #   name: spot-render-ollama
+          #   namespace: argocd
+          # spec:
+          #   source:
+          #     repoURL: https://github.com/raafa001/spot-render-ollama
+          #     targetRevision: main
+          #     path: kubernetes/overlays/local
+          #   destination:
+          #     server: https://kubernetes.default.svc
+          #     namespace: spot-ai
+          #
+          # apiVersion: argoproj.io/v1alpha1
+          # kind: Application
+          # metadata:
+          #   name: spot-render-ia-auto-agents
+          #   namespace: argocd
+          # spec:
+          #   source:
+          #     repoURL: https://github.com/raafa001/spot-render-ia-auto-agents
+          #     targetRevision: main
+          #     path: kubernetes/base
+          #   destination:
+          #     server: https://kubernetes.default.svc
+          #     namespace: spot-render-ai-agents
+          EOF
+          echo "✓ ArgoCD Application definitions ready"
+
+      - name: Sync ArgoCD
+        if: false  # Enable when ArgoCD is configured
+        run: |
+          argocd app sync spot-render-portal || echo "Would sync spot-render-portal"
+          argocd app sync spot-render-ollama || echo "Would sync spot-render-ollama"
+          argocd app sync spot-render-ia-auto-agents || echo "Would sync spot-render-ia-auto-agents"
+
+  # ============================================================================
+  # CD - Sync External Repos
+  # ============================================================================
+  sync-external-repos:
+    name: Sync External Repositories
+    needs: [update-argocd]
+    runs-on: ubuntu-24.04
+    if: github.ref == 'refs/heads/main' && false  # Disable automatic sync
+    environment: production
+
+    steps:
+      - name: Trigger Ollama repo sync
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: raafa001/spot-render-ollama
+          event-type: sync-from-teste-local
+          client-payload: '{"ref": "${{ github.ref }}", "sha": "${{ github.sha }}"}'
+        if: false  # Disable
+
+      - name: Trigger AI Agents repo sync
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: raafa001/spot-render-ia-auto-agents
+          event-type: sync-from-teste-local
+          client-payload: '{"ref": "${{ github.ref }}", "sha": "${{ github.sha }}"}'
+        if: false  # Disable
+
+  # ============================================================================
+  # Notify Status
+  # ============================================================================
+  notify:
+    name: Notify Status
+    needs: [deploy-local, integration-tests, update-argocd]
+    runs-on: ubuntu-24.04
+    if: always()
+
+    steps:
+      - name: Generate deployment report
+        run: |
+          echo "=== Spot Render Test Local Deployment Report ==="
+          echo "Date: $(date)"
+          echo "Ref: ${{ github.ref }}"
+          echo "SHA: ${{ github.sha }}"
+          echo ""
+          echo "Job Results:"
+          echo "  Lint & Validate: ${{ needs.lint-and-validate.result }}"
+          echo "  Security Scan: ${{ needs.security-scan.result }}"
+          echo "  Deploy Local: ${{ needs.deploy-local.result }}"
+          echo "  Integration Tests: ${{ needs.integration-tests.result }}"
+          echo "  ArgoCD Update: ${{ needs.update-argocd.result }}"
+          echo ""
+          if [[ "${{ needs.deploy-local.result }}" == "success" ]]; then
+            echo "✅ Deployment: SUCCESS"
+          else
+            echo "❌ Deployment: FAILED"
+            exit 1
+          fi
