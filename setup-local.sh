@@ -426,8 +426,73 @@ if [[ -f "$REPO_ROOT/k8s/overlays/ai-agent/ai-agent.yaml" ]]; then
   else
     warn "Falha ao aplicar AI Agent manifest"
   fi
+  else
+    warn "AI Agent manifest não encontrado"
+fi
+
+# ─── Deploy Ollama (Kubernetes) ──────────────────────────────────────────────
+info "Deploying Ollama to Kubernetes..."
+OLLAMA_K8S_READY=false
+if [[ -d "$BASE_DIR/spot-render-ollama/kubernetes/base" ]]; then
+  if kubectl apply -f "$BASE_DIR/spot-render-ollama/kubernetes/base/k8s-ollama.yaml" 2>/dev/null; then
+    info "Ollama K8s deployment criado"
+
+    info "Aguardando Ollama K8s ficar pronto..."
+    for i in {1..60}; do
+      OLLAMA_POD=$(kubectl get pods -n spot-ai -l app=ollama -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+      if [[ -n "$OLLAMA_POD" ]]; then
+        PHASE=$(kubectl get pod "$OLLAMA_POD" -n spot-ai -o jsonpath='{.status.phase}' 2>/dev/null || echo "Unknown")
+        if [[ "$PHASE" == "Running" ]]; then
+          # Verificar se o modelo está disponível
+          if kubectl exec -n spot-ai "$OLLAMA_POD" -- ollama list 2>/dev/null | grep -q "llama3.2:latest"; then
+            info "Ollama K8s está rodando com modelo llama3.2:latest!"
+            OLLAMA_K8S_READY=true
+            break
+          fi
+        fi
+      fi
+      sleep 3
+    done
+
+    if [[ "$OLLAMA_K8S_READY" != "true" ]]; then
+      warn "Ollama K8s pode não estar pronto. Verifique com: kubectl get pods -n spot-ai"
+    fi
+  else
+    warn "Falha ao aplicar Ollama K8s manifest"
+  fi
 else
-  warn "AI Agent manifest não encontrado"
+  warn "spot-render-ollama não encontrado em $BASE_DIR. Pulando Ollama K8s."
+fi
+
+# ─── Deploy AIOps Agents (SRE, DevOps, Self-Healing) ─────────────────────────
+info "Deploying AIOps Agents to Kubernetes..."
+AGENTS_READY=false
+if [[ -d "$BASE_DIR/spot-render-ia-auto-agents/kubernetes/base" ]]; then
+  if kubectl apply -f "$BASE_DIR/spot-render-ia-auto-agents/kubernetes/base/k8s-agents-standalone.yaml" 2>/dev/null; then
+    info "AIOps Agents deployment criado"
+
+    info "Aguardando AIOps Agents ficarem prontos..."
+    for i in {1..30}; do
+      SRE_POD=$(kubectl get pods -n spot-render-ai-agents -l app=sre-agent -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+      if [[ -n "$SRE_POD" ]]; then
+        PHASE=$(kubectl get pod "$SRE_POD" -n spot-render-ai-agents -o jsonpath='{.status.phase}' 2>/dev/null || echo "Unknown")
+        if [[ "$PHASE" == "Running" ]]; then
+          info "AIOps Agents estão rodando!"
+          AGENTS_READY=true
+          break
+        fi
+      fi
+      sleep 2
+    done
+
+    if [[ "$AGENTS_READY" != "true" ]]; then
+      warn "AIOps Agents podem não estar prontos. Verifique com: kubectl get pods -n spot-render-ai-agents"
+    fi
+  else
+    warn "Falha ao aplicar AIOps Agents manifest"
+  fi
+else
+  warn "spot-render-ia-auto-agents não encontrado em $BASE_DIR. Pulando AIOps Agents."
 fi
 
 # ─── Validar que Spotinho AI está funcionando ─────────────────────────────────

@@ -118,6 +118,23 @@ else
   info "  Namespace spot-ai não existe (OK)"
 fi
 
+# ─── Limpar AIOps Agents (SRE, DevOps, Self-Healing) ──────────────────────
+info "Removendo AIOps Agents..."
+if kubectl get namespace spot-render-ai-agents >/dev/null 2>&1; then
+  info "  Removendo namespace spot-render-ai-agents..."
+  kubectl delete namespace spot-render-ai-agents --ignore-not-found >/dev/null 2>&1 || true
+
+  # Validar remoção
+  if ! kubectl get namespace spot-render-ai-agents >/dev/null 2>&1; then
+    info "  ✓ Namespace spot-render-ai-agents removido"
+  else
+    warn "  ✗ Namespace spot-render-ai-agents ainda existe, forçando remoção..."
+    kubectl delete namespace spot-render-ai-agents --grace-period=0 --force >/dev/null 2>&1 || true
+  fi
+else
+  info "  Namespace spot-render-ai-agents não existe (OK)"
+fi
+
 # Limpar artifacts do AI Agent
 if [[ -d "$REPO_ROOT/artifacts" ]]; then
   rm -rf "$REPO_ROOT/artifacts"/*ai-agent* 2>/dev/null || true
