@@ -1,0 +1,17 @@
+# Spot Render AI Agents - Local Overlay
+# Integrates IA Auto Agents into the local cluster
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: spot-render-ai-agents
+
+resources:
+  - ../../../../spot-render-ia-auto-agent/kubernetes/base/k8s-agents.yaml
+
+patchesStrategicMerge:
+  - configmap-patch.yaml
+
+commonLabels:
+  app.kubernetes.io/managed-by: kustomize
+  app.kubernetes.io/instance: spot-render-ai-agents
