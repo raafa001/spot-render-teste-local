@@ -1,8 +1,0 @@
-# ConfigMap patches for AI Agents
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: agent-config
-  namespace: spot-render-ai-agents
-data:
-  OLLAMA_URL: "http://spot-render-ollama.spot-render.svc.cluster.local:11434"
