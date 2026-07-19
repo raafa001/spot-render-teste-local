@@ -437,17 +437,24 @@ if [[ -d "$BASE_DIR/spot-render-ollama/kubernetes/base" ]]; then
   if kubectl apply -f "$BASE_DIR/spot-render-ollama/kubernetes/base/k8s-ollama.yaml" 2>/dev/null; then
     info "Ollama K8s deployment criado"
 
-    info "Aguardando Ollama K8s ficar pronto..."
-    for i in {1..60}; do
+    info "Aguardando Ollama K8s ficar pronto (isso pode levar varios minutos para baixar o modelo)..."
+    # Wait up to 15 minutes for the model to be pulled (model is ~2GB)
+    for i in {1..300}; do
       OLLAMA_POD=$(kubectl get pods -n spot-ai -l app=ollama -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
       if [[ -n "$OLLAMA_POD" ]]; then
         PHASE=$(kubectl get pod "$OLLAMA_POD" -n spot-ai -o jsonpath='{.status.phase}' 2>/dev/null || echo "Unknown")
         if [[ "$PHASE" == "Running" ]]; then
           # Verificar se o modelo está disponível
-          if kubectl exec -n spot-ai "$OLLAMA_POD" -- ollama list 2>/dev/null | grep -q "llama3.2:latest"; then
+          MODEL_LIST=$(kubectl exec -n spot-ai "$OLLAMA_POD" -- ollama list 2>/dev/null || echo "")
+          if echo "$MODEL_LIST" | grep -q "llama3.2:latest"; then
             info "Ollama K8s está rodando com modelo llama3.2:latest!"
             OLLAMA_K8S_READY=true
             break
+          else
+            # Log progress every 30 seconds
+            if [[ $((i % 10)) -eq 0 ]]; then
+              info "Aguardando modelo... ($((i * 3))s decorridos)"
+            fi
           fi
         fi
       fi
@@ -456,6 +463,7 @@ if [[ -d "$BASE_DIR/spot-render-ollama/kubernetes/base" ]]; then
 
     if [[ "$OLLAMA_K8S_READY" != "true" ]]; then
       warn "Ollama K8s pode não estar pronto. Verifique com: kubectl get pods -n spot-ai"
+      warn "Para verificar manualmente: kubectl exec -n spot-ai deploy/ollama -- ollama list"
     fi
   else
     warn "Falha ao aplicar Ollama K8s manifest"
